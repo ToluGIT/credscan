@@ -1,0 +1,51 @@
+# CredScan Configuration
+# ---------------------
+
+# Scanning options
+scan_path: "."
+max_workers: 4
+verbose: false
+
+# File handling
+exclude_patterns:
+  - "vendor/"
+  - "node_modules/"
+  - ".git/"
+  - "test/"
+  - "tests/"
+  - "example/"
+  - "examples/"
+
+# Output options
+output_formats:
+  - "console"
+  - "json"
+output_directory: "./reports"
+disable_colors: false
+
+# Detection settings
+min_length: 8
+
+# Analyzer settings
+enable_entropy: true
+entropy_threshold: 4.2
+min_string_length: 10
+max_string_length: 120
+
+# Parser settings
+code_extensions:
+  - ".py"
+  - ".js"
+  - ".java"
+  - ".go"
+  - ".php"
+  - ".rb"
+  - ".cs"
+  - ".cpp"
+  - ".c"
+  - ".h"
+  - ".swift"
+  - ".kt"
+  - ".ts"
+  - ".sh"
+  - ".bash"

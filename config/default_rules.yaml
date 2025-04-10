@@ -1,0 +1,101 @@
+# Default Detection Rules for CredScan
+# Each rule defines patterns for identifying potential credentials
+
+- id: sensitive_variable_names
+  name: Sensitive Variable Names
+  description: Detects variables with names suggesting they contain credentials
+  severity: medium
+  variable_patterns:
+    - (?i)passwd|password
+    - (?i)secret
+    - (?i)token
+    - (?i)apiKey|api[_-]key
+    - (?i)accessKey|access[_-]key
+    - (?i)bearer
+    - (?i)credentials
+    - salt|SALT|Salt
+    - (?i)signature
+    - (?i)auth(?!or|orize|entication)
+  variable_exclusion_pattern: (?i)format|tokenizer|secretName|Error$|passwordPolicy|tokens$|tokenPolicy|[,\s#+*^|}{'"\[\]]|regex
+  value_exclusion_patterns:
+    - (?i)^test$|password|^postgres$|^root$|^foobar$|^example$|^changeme$|^default$|^master$
+    - (?i)^string$|^integer$|^number$|^boolean$|^xsd:.+|^literal$
+    - (?i)^true$|^false$
+    - (?i)^bearer$|^Authorization$
+    - bootstrapper
+    - \${.+\}
+    - (?i){{.*}}
+  min_length: 6
+
+- id: credential_patterns
+  name: Common Credential Patterns
+  description: Detects values matching common credential patterns
+  severity: high
+  value_patterns:
+    - name: Postgres URI
+      pattern: postgres(?:ql)?:\/\/.+:.+@.+:.+\/.+
+      
+    - name: URL With Basic Auth
+      pattern: (ftp|sftp|http|https):\/\/[a-zA-Z0-9%-]+:[a-zA-Z0-9%-]+@([a-z0-9-]{0,61}\.[a-z]{2,})
+      
+    - name: JWT Token
+      pattern: eyJhbGciOiJIUzI1NiIsInR5cCI[a-zA-Z0-9_.]+
+      
+    - name: Bcrypt Hash
+      pattern: ^\$2[ayb]\$.{56,57}$
+      
+    - name: AWS Client ID
+      pattern: (A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}
+      
+    - name: AWS Secret Key
+      pattern: (?i)aws(.{0,20})?(?-i)['\"][0-9a-zA-Z\/+]{40}['\"]
+      
+    - name: SendGrid API Key
+      pattern: SG\.[\w_-]{16,32}\.[\w_-]{16,64}
+      
+    - name: Private Key
+      pattern: -----BEGIN ((EC|PGP|DSA|RSA|OPENSSH) )?PRIVATE KEY( BLOCK)?-----
+      
+    - name: Google API Key
+      pattern: AIza[0-9A-Za-z\\-_]{35}
+      
+    - name: Stripe API Key
+      pattern: sk_live_[0-9a-zA-Z]{24}
+      
+    - name: GitHub Token
+      pattern: (?i)github(.{0,20})?(?-i)['\"][0-9a-zA-Z]{40}['\"]
+      
+    - name: Slack Token
+      pattern: xox[baprs]-([0-9a-zA-Z]{10,48})?
+      
+    - name: Slack Webhook
+      pattern: https:\/\/hooks\.slack\.com\/services\/T[a-zA-Z0-9_]{8}\/B[a-zA-Z0-9_]{8,10}\/[a-zA-Z0-9_]{24}
+  
+  value_exclusion_patterns:
+    - postgres(?:ql)?:\/\/.+:.+@localhost:.+\/.+
+    - postgres(?:ql)?:\/\/.+:.+@127.0.0.1:.+\/.+
+    - postgres(?:ql)?:\/\/postgres:postgres@postgres:.+\/.+
+  min_length: 16
+
+- id: generic_secrets
+  name: High-Entropy Secrets
+  description: Detects strings that appear to be randomly generated secrets
+  severity: medium
+  variable_patterns:
+    - (?i)key
+    - (?i)iv|initialization|vector
+    - (?i)nonce
+    - (?i)code
+    - (?i)certificate
+  value_patterns:
+    - name: Hex String
+      pattern: (?<![0-9a-fA-F])[0-9a-fA-F]{32,}(?![0-9a-fA-F])
+      
+    - name: Base64 String
+      pattern: (?<![A-Za-z0-9+/=])[A-Za-z0-9+/=]{40,}(?![A-Za-z0-9+/=])
+  
+  value_exclusion_patterns:
+    - ^[0-9]+$
+    - (?i)example
+    - (?i)test
+  min_length: 20
