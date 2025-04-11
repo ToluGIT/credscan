@@ -1,9 +1,0 @@
-{
-  "database": {
-    "username": "admin",
-    "password": "super_secret_db_password",
-    "host": "db.example.com"
-  },
-  "api_key": "AKIASFODNN7EXAMPLE",
-  "auth_token": "eyJhbGciOIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0"
-}
