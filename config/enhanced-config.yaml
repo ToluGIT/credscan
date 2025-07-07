@@ -1,0 +1,82 @@
+# Enhanced Credential Detection Configuration
+
+# Pattern library settings
+pattern_library_path: "config/custom_patterns.yaml"  # Optional path to additional patterns
+enabled_pattern_categories:
+  - aws
+  - gcp
+  - database
+  - payment
+  - messaging
+  - private_keys
+  - jwt
+  - api
+  - password
+  - ai_ml
+disabled_pattern_categories:
+  - social  # Disable social media patterns if not relevant
+
+# Custom rules for organization-specific patterns
+custom_rules:
+  - id: "internal_api_keys"
+    name: "Internal API Key Detection"
+    description: "Detects internal API keys specific to our organization"
+    severity: "high"
+    variable_patterns:
+      - "(?i)internal[_-]api[_-]key"
+      - "(?i)company[_-]key"
+      - "(?i)our[_-]secret"
+    enabled_categories:
+      - api
+      - password
+
+  - id: "database_credentials"
+    name: "Internal Database Credential Detection"
+    description: "Detects internal database credentials"
+    severity: "critical"
+    variable_patterns:
+      - "(?i)db[_-]user"
+      - "(?i)db[_-]pass"
+      - "(?i)database[_-]cred"
+    enabled_categories:
+      - database
+      - password
+
+# Detection thresholds
+min_threshold: 0.7  # Minimum confidence threshold
+severity_threshold: "medium"  # Minimum severity to report
+
+# Standard cred-scan settings
+scan_path: "."
+max_workers: 8
+verbose: false
+
+# Baseline settings
+baseline_file: ".cred-scan-baseline.json"  # Path to baseline file for false positive exclusion
+
+# File handling
+exclude_patterns:
+  - "vendor/"
+  - "node_modules/"
+  - ".git/"
+  - "test/"
+  - "tests/"
+  - "example/"
+  - "examples/"
+
+# Output options
+output_formats:
+  - "console"
+  - "json"
+  - "sarif"
+output_directory: "./reports"
+disable_colors: false
+
+# Detection settings
+min_length: 8  # Minimum length for potential credentials
+
+# Analyzer settings
+enable_entropy: true
+entropy_threshold: 4.5
+min_string_length: 10
+max_string_length: 120

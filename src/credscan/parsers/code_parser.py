@@ -27,7 +27,7 @@ class CodeParser(BaseParser):
         # Define supported file extensions
         self.supported_extensions = self.config.get('code_extensions', [
             '.py', '.js', '.java', '.go', '.php', '.rb', '.cs', '.cpp', '.c', 
-            '.h', '.swift', '.kt', '.ts', '.sh', '.bash', '.pl', '.pm'
+            '.h', '.swift', '.kt', '.ts', '.sh', '.bash', '.pl', '.pm', '.txt'
         ])
         
         # Regular expressions for parsing

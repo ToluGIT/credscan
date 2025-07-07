@@ -1,0 +1,82 @@
+# Consolidated patterns from scan4secrets analysis
+
+# Token patterns - 160 variations consolidated
+# Original keywords: pipeline_token, powerbi_token, gcp_user_token, gitlab_ci_token, rapidapi_token and 155 more
+# Categories: General Credentials, AWS, GCP, Azure, GitHub / GitLab / Bitbucket, Payments / Banking, Messaging / Chat, CI/CD & DevOps, Cloudflare, Observability / Monitoring, AI / ML, Email, Mobile / Firebase / Expo, API Tools / Platforms, Analytics / BI, Other SaaS / Tools, Monitoring & Observability, Cloudflare & DNS, Messaging Platforms, Payment & Financial, Cloud Storage & Services, SSH & Certificates, Authentication Services, BI & Analytics, Developer & API Tools, Source Control & Project Mgmt, Cloud Platform - Extended, Email Services, ML/AI Providers, Miscellaneous Secrets
+pattern = r"(?i)((?:.*[_-])?token(?:[_-].*)?)"
+
+# Key patterns - 138 variations consolidated
+# Original keywords: stability_key, airtable_api_key, email_api_key, tls_key, registration_key and 133 more
+# Categories: General Credentials, Database Credentials, AWS, GCP, Azure, GitHub / GitLab / Bitbucket, Payments / Banking, Messaging / Chat, CI/CD & DevOps, Cloudflare, Observability / Monitoring, AI / ML, Email, SSH / SSL / Certs, Mobile / Firebase / Expo, API Tools / Platforms, Analytics / BI, Other SaaS / Tools, Monitoring & Observability, Cloudflare & DNS, Payment & Financial, Cloud Storage & Services, SSH & Certificates, Authentication Services, BI & Analytics, Developer & API Tools, Source Control & Project Mgmt, Cloud Platform - Extended, Email Services, ML/AI Providers, Miscellaneous Secrets
+pattern = r"(?i)((?:.*[_-])?key(?:[_-].*)?)"
+
+# Secret patterns - 46 variations consolidated
+# Original keywords: infura_project_secret, prisma_secret, smtp_secret, scaleway_secret, app_secret and 41 more
+# Categories: General Credentials, AWS, GCP, Azure, GitHub / GitLab / Bitbucket, Payments / Banking, Messaging / Chat, CI/CD & DevOps, Other SaaS / Tools, Monitoring & Observability, Messaging Platforms, Payment & Financial, Authentication Services, Source Control & Project Mgmt, Cloud Platform - Extended, Email Services, Miscellaneous Secrets
+pattern = r"(?i)((?:.*[_-])?secret(?:[_-].*)?)"
+
+# Password patterns - 13 variations consolidated
+# Original keywords: password, pem_password, mssql_password, MYSQL_PASSWORD, database_password and 8 more
+# Categories: General Credentials, Database Credentials, Azure, CI/CD & DevOps, Email, SSH / SSL / Certs, SSH & Certificates, Email Services
+pattern = r"(?i)((?:.*[_-])?password(?:[_-].*)?)"
+
+# Id patterns - 11 variations consolidated
+# Original keywords: azure_tenant_id, azure_client_id, payment_id, firebase_project_id, firebase_app_id and 6 more
+# Categories: General Credentials, AWS, GCP, Azure, Payments / Banking, Mobile / Firebase / Expo, Other SaaS / Tools, Payment & Financial
+pattern = r"(?i)(azure_tenant_id|azure_client_id|payment_id|firebase_project_id|firebase_app_id|...)"
+
+# Pass patterns - 6 variations consolidated
+# Original keywords: mongo_pass, pass, temp_pass, postgres_pass, mysql_pass and 1 more
+# Categories: General Credentials, Database Credentials, Email
+pattern = r"(?i)(mongo_pass|pass|temp_pass|postgres_pass|mysql_pass|...)"
+
+# Database patterns - 5 variations consolidated
+# Original keywords: db_user, db_pass, db_username, mongodb_pass, db_pwd
+# Categories: Database Credentials
+pattern = r"(?i)(db_user|db_pass|db_username|mongodb_pass|db_pwd)"
+
+# Pwd patterns - 4 variations consolidated
+# Original keywords: mysql_pwd, postgres_pwd, pwd, oracle_pwd
+# Categories: General Credentials, Database Credentials
+pattern = r"(?i)(mysql_pwd|postgres_pwd|pwd|oracle_pwd)"
+
+# Credential patterns - 4 variations consolidated
+# Original keywords: gcp_credentials, aws_credentials, credentials, github_credentials
+# Categories: General Credentials, AWS, GCP, GitHub / GitLab / Bitbucket
+pattern = r"(?i)(gcp_credentials|aws_credentials|credentials|github_credentials)"
+
+# Auth patterns - 4 variations consolidated
+# Original keywords: auth_hash, auth, authorization, google_oauth
+# Categories: General Credentials, GCP
+pattern = r"(?i)(auth_hash|auth|authorization|google_oauth)"
+
+# Number patterns - 3 variations consolidated
+# Original keywords: account_number, routing_number, card_number
+# Categories: Payments / Banking
+pattern = r"(?i)(account_number|routing_number|card_number)"
+
+# Cert patterns - 3 variations consolidated
+# Original keywords: x509_cert, cert, tls_cert
+# Categories: SSH / SSL / Certs
+pattern = r"(?i)(x509_cert|cert|tls_cert)"
+
+# Code patterns - 3 variations consolidated
+# Original keywords: swift_code, secure_code, session_code
+# Categories: General Credentials, Payments / Banking
+pattern = r"(?i)(swift_code|secure_code|session_code)"
+
+# User patterns - 2 variations consolidated
+# Original keywords: mysql_user, smtp_user
+# Categories: Database Credentials, Email
+pattern = r"(?i)(mysql_user|smtp_user)"
+
+# Rsa patterns - 2 variations consolidated
+# Original keywords: id_rsa, ssh_rsa
+# Categories: SSH / SSL / Certs, SSH & Certificates
+pattern = r"(?i)(id_rsa|ssh_rsa)"
+
+# Pat patterns - 2 variations consolidated
+# Original keywords: gh_pat, github_pat
+# Categories: GitHub / GitLab / Bitbucket
+pattern = r"(?i)(gh_pat|github_pat)"
+

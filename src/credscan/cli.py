@@ -19,9 +19,8 @@ from credscan.parsers.code_parser import CodeParser
 from credscan.analyzers.entropy import EntropyAnalyzer
 from credscan.hooks import PreCommitScanner, install_hook
 from credscan.history.scanner import HistoryScanner
-
-
-
+from credscan.enhanced.config_integration import EnhancedConfig
+from credscan.enhanced.pattern_library import load_default_patterns
 
 # Set up logging
 logging.basicConfig(
@@ -73,6 +72,15 @@ def parse_args():
     
     parser.add_argument('--no-color', action='store_true',
                         help='Disable colored output')
+    
+    parser.add_argument('--enhanced-patterns', action='store_true', default=True,
+                        help='Enable enhanced pattern detection (enabled by default)')
+    parser.add_argument('--legacy-patterns', action='store_true',
+                        help='Use legacy pattern detection instead of enhanced patterns')
+    parser.add_argument('--pattern-library', type=str,
+                        help='Path to custom pattern library file')
+    parser.add_argument('--pattern-categories', type=str,
+                        help='Comma-separated list of pattern categories to enable')
     
     baseline_group = parser.add_argument_group('Baseline Management')
     baseline_group.add_argument('--baseline-file', type=str, 
@@ -206,6 +214,31 @@ def build_config_from_args(args) -> Dict[str, Any]:
     
     return config
 
+def patch_cli_execution(args, config, engine):
+    """Update execution to use enhanced detection by default, unless legacy mode is requested."""
+    from credscan.enhanced.config_integration import EnhancedConfig
+    
+    # Use legacy patterns only if explicitly requested
+    if hasattr(args, 'legacy_patterns') and args.legacy_patterns:
+        logger.info("Using legacy pattern detection")
+        return engine
+    
+    # Default to enhanced pattern detection
+    logger.info("Using enhanced pattern detection")
+    
+    # Create enhanced config from existing config
+    enhanced_config_data = config.copy()
+    
+    if hasattr(args, 'pattern_library') and args.pattern_library:
+        enhanced_config_data['pattern_library_path'] = args.pattern_library
+        
+    if hasattr(args, 'pattern_categories') and args.pattern_categories:
+        enhanced_config_data['enabled_pattern_categories'] = args.pattern_categories.split(',')
+        
+    # Create enhanced config and engine
+    enhanced_config = EnhancedConfig(enhanced_config_data)
+    return enhanced_config.create_enhanced_engine()
+
 def main():
     """Main entry point for the command-line application."""
     # Parse command-line arguments
@@ -244,6 +277,10 @@ BASELINE_FILE=".credscan-baseline.json"
     
     # Build configuration
     config = build_config_from_args(args)
+    
+    # Set up logging level
+    if config.get('verbose'):
+        logger.setLevel(logging.DEBUG)
 
     # Run in history scan mode if requested
     if args.scan_history:
@@ -285,13 +322,6 @@ BASELINE_FILE=".credscan-baseline.json"
         else:
             sys.exit(0)
     
-    # Build configuration
-    config = build_config_from_args(args)
-    
-    # Set up logging level
-    if config.get('verbose'):
-        logger.setLevel(logging.DEBUG)
-    
     # Initialize the scanning engine
     engine = ScanEngine(config)
     
@@ -304,13 +334,17 @@ BASELINE_FILE=".credscan-baseline.json"
     if config.get('enable_entropy', True):
         engine.register_analyzer(EntropyAnalyzer(config))
     
-    # Load detection rules
-    if args.rules:
-        rules = RuleLoader.load_rules_from_file(args.rules)
-    else:
-        rules = RuleLoader.load_default_rules()
+    # Apply enhanced pattern detection if enabled
+    engine = patch_cli_execution(args, config, engine)
     
-    engine.register_rules(rules)
+    # Load detection rules (only for legacy engine)
+    if hasattr(args, 'legacy_patterns') and args.legacy_patterns:
+        if args.rules:
+            rules = RuleLoader.load_rules_from_file(args.rules)
+        else:
+            rules = RuleLoader.load_default_rules()
+        
+        engine.register_rules(rules)
     
     # Run the scan
     logger.info(f"Starting credential scan on {config['scan_path']}")

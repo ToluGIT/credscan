@@ -25,6 +25,7 @@ disable_colors: false
 
 # Detection settings
 min_length: 8
+use_enhanced_patterns: true  # Use enhanced pattern library by default
 
 # Analyzer settings
 enable_entropy: true
@@ -49,3 +50,21 @@ code_extensions:
   - ".ts"
   - ".sh"
   - ".bash"
+  - ".txt"  # Added support for text files
+
+# Enhanced pattern detection settings
+enhanced_patterns:
+  enabled: true  # Enhanced patterns enabled by default
+  # pattern_library_path: "custom_patterns.yaml"  # Optional custom pattern library
+  enabled_pattern_categories:  # Specific categories to enable (default: all)
+    - "aws"
+    - "google"
+    - "github"
+    - "slack"
+    - "stripe"
+    - "azure"
+    - "docker"
+    - "generic"
+  # disabled_pattern_categories: []  # Categories to disable
+  min_confidence_threshold: 0.7  # Minimum confidence for pattern matches
+  severity_threshold: "medium"  # Minimum severity to report

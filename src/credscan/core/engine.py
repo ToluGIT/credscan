@@ -96,14 +96,20 @@ class ScanEngine:
         """
         files_to_scan = []
         
-        for root, dirs, files in os.walk(self.scan_path):
-            # Skip excluded directories
-            dirs[:] = [d for d in dirs if self.should_scan_file(os.path.join(root, d))]
-            
-            for file in files:
-                filepath = os.path.join(root, file)
-                if self.should_scan_file(filepath):
-                    files_to_scan.append(filepath)
+        # Check if scan_path is a single file
+        if os.path.isfile(self.scan_path):
+            if self.should_scan_file(self.scan_path):
+                files_to_scan.append(self.scan_path)
+        else:
+            # Directory scanning
+            for root, dirs, files in os.walk(self.scan_path):
+                # Skip excluded directories
+                dirs[:] = [d for d in dirs if self.should_scan_file(os.path.join(root, d))]
+                
+                for file in files:
+                    filepath = os.path.join(root, file)
+                    if self.should_scan_file(filepath):
+                        files_to_scan.append(filepath)
         
         self.files_found = len(files_to_scan)
         logger.info(f"Found {self.files_found} files to scan")
@@ -275,3 +281,23 @@ class ScanEngine:
             self.baseline_manager.add_finding_exclusion(finding, reason)
         
         return self.baseline_manager.save_baseline()
+    
+    def register_enhanced_rules(self, pattern_library=None):
+        """
+        Register enhanced detection rules with the engine.
+        
+        Args:
+            pattern_library: Optional pattern library to use
+        """
+        from credscan.enhanced.rule_engine_integration import EnhancedRuleLoader
+        from credscan.enhanced.pattern_library import load_default_patterns
+        
+        # Load pattern library
+        if not pattern_library:
+            pattern_library = load_default_patterns()
+        
+        # Register enhanced rules
+        enhanced_rules = EnhancedRuleLoader.load_default_rules(pattern_library)
+        self.register_rules(enhanced_rules)
+        
+        logger.info(f"Registered {len(enhanced_rules)} enhanced detection rules")
