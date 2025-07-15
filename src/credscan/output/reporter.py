@@ -142,96 +142,6 @@ class Reporter:
                 file_findings.sort(key=lambda f: f.get('line', 0))
                 
                 self._print_findings_list(file_findings, c)
-                rule_name = finding.get('rule_name', 'Unknown Rule')
-                severity = finding.get('severity', 'medium')
-                line = finding.get('line', 0)
-                variable = finding.get('variable', '')
-                value = finding.get('value', '')
-                description = finding.get('description', '')
-                
-                # Handle excluded findings
-                is_excluded = finding.get('excluded', False)
-                
-                # Color-code severity
-                if is_excluded:
-                    severity_str = f"{c['green']}EXCLUDED{c['reset']}"
-                elif severity == 'high':
-                    severity_str = f"{c['red']}{severity.upper()}{c['reset']}"
-                elif severity == 'medium':
-                    severity_str = f"{c['yellow']}{severity.upper()}{c['reset']}"
-                else:
-                    severity_str = f"{c['green']}{severity.upper()}{c['reset']}"
-                
-                # Print finding details
-                if is_excluded:
-                    print(f"{c['bold']}[{severity_str}] {rule_name}{c['reset']} (Baseline: {finding.get('exclusion_reason', 'Unknown reason')})")
-                else:
-                    # Check if this is a grouped finding
-                    if finding.get('is_duplicate_group'):
-                        detection_count = finding.get('detection_count', 1)
-                        print(f"{c['bold']}[{severity_str}] {rule_name}{c['reset']} ({c['cyan']}{detection_count} detections grouped{c['reset']})")
-                        
-                        # Show detection methods if available
-                        detection_methods = finding.get('detection_methods', [])
-                        if detection_methods and len(detection_methods) > 1:
-                            methods = [m.get('rule', 'Unknown') for m in detection_methods[:3]]
-                            print(f"  Detection methods: {', '.join(methods)}")
-                    else:
-                        print(f"{c['bold']}[{severity_str}] {rule_name}{c['reset']}")
-                    
-                    # Mark test credentials
-                    if finding.get('is_test_credential'):
-                        test_indicators = finding.get('test_indicators', [])
-                        print(f"  {c['yellow']}⚠ Likely test/example credential{c['reset']} ({', '.join(test_indicators[:2])})")
-                
-                if line:
-                    print(f"  Line: {line}")
-                    
-                if variable:
-                    print(f"  Variable: {variable}")
-                    
-                if value:
-                    # Truncate long values
-                    if len(value) > 100:
-                        display_value = value[:97] + "..."
-                    else:
-                        display_value = value
-                    print(f"  Value: {c['yellow']}{display_value}{c['reset']}")
-                    
-                print(f"  {description}")
-                
-                # Show confidence information if available
-                overall_confidence = finding.get('overall_confidence')
-                context_confidence = finding.get('confidence')  # Context confidence from existing analyzer
-                
-                if overall_confidence is not None:
-                    confidence_color = self._get_confidence_color(overall_confidence)
-                    print(f"  Overall Confidence: {confidence_color}{overall_confidence:.3f}{c['reset']}")
-                elif context_confidence is not None:
-                    confidence_color = self._get_confidence_color(context_confidence)
-                    print(f"  Confidence: {confidence_color}{context_confidence:.3f}{c['reset']}")
-                
-                # Show detailed confidence breakdown if requested
-                if finding.get('confidence_explanation') and not is_excluded:
-                    explanation_lines = finding['confidence_explanation'].split('\n')
-                    print(f"  {c['dim']}{explanation_lines[0]}{c['reset']}")
-                    if len(explanation_lines) > 1:
-                        for line in explanation_lines[1:4]:  # Show top 3 factors
-                            if line.strip():
-                                print(f"  {c['dim']}{line}{c['reset']}")
-                
-                # Show context information if available
-                context_type = finding.get('context_type')
-                risk_level = finding.get('risk_level')
-                if context_type and not is_excluded:
-                    risk_color = c['red'] if risk_level == 'high' else c['yellow'] if risk_level == 'medium' else c['green']
-                    print(f"  Context: {context_type} ({risk_color}{risk_level} risk{c['reset']})")
-                
-                # Show exclusion ID if excluded
-                if is_excluded and finding.get('exclusion_id'):
-                    print(f"  Exclusion ID: {finding.get('exclusion_id')}")
-                    
-                print()
                 
         # Print summary
         if findings:
@@ -690,3 +600,133 @@ class Reporter:
             return self.colors['magenta']  # Low-medium confidence - magenta
         else:
             return self.colors['red']  # Low confidence - red
+    
+    def _print_findings_by_severity(self, findings: List[Dict[str, Any]], c: Dict[str, str]):
+        """Print findings grouped by severity level."""
+        # Group findings by severity
+        severity_groups = {'high': [], 'medium': [], 'low': [], 'info': []}
+        
+        for finding in findings:
+            severity = finding.get('severity', 'medium')
+            if severity in severity_groups:
+                severity_groups[severity].append(finding)
+            else:
+                severity_groups['medium'].append(finding)  # Default to medium
+        
+        # Print each severity group
+        severity_order = ['high', 'medium', 'low', 'info']
+        for severity in severity_order:
+            if not severity_groups[severity]:
+                continue
+                
+            # Print severity header
+            severity_color = c['red'] if severity == 'high' else c['yellow'] if severity == 'medium' else c['green']
+            print(f"\n{c['bg_red'] if severity == 'high' else c['dim']}{c['bold']} {severity.upper()} SEVERITY FINDINGS ({len(severity_groups[severity])}) {c['reset']}\n")
+            
+            # Group by file within this severity
+            files_in_severity = {}
+            for finding in severity_groups[severity]:
+                path = finding.get('path', 'unknown')
+                if path not in files_in_severity:
+                    files_in_severity[path] = []
+                files_in_severity[path].append(finding)
+            
+            # Print findings for each file in this severity
+            for filepath, file_findings in files_in_severity.items():
+                print(f"\n{c['bold']}File: {filepath}{c['reset']}")
+                file_findings.sort(key=lambda f: f.get('line', 0))
+                self._print_findings_list(file_findings, c)
+    
+    def _print_findings_list(self, findings: List[Dict[str, Any]], c: Dict[str, str]):
+        """Print a list of findings with detailed information."""
+        for finding in findings:
+            rule_name = finding.get('rule_name', 'Unknown Rule')
+            severity = finding.get('severity', 'medium')
+            line = finding.get('line', 0)
+            variable = finding.get('variable', '')
+            value = finding.get('value', '')
+            description = finding.get('description', '')
+            
+            # Handle excluded findings
+            is_excluded = finding.get('excluded', False)
+            
+            # Color-code severity
+            if is_excluded:
+                severity_str = f"{c['green']}EXCLUDED{c['reset']}"
+            elif severity == 'high':
+                severity_str = f"{c['red']}{severity.upper()}{c['reset']}"
+            elif severity == 'medium':
+                severity_str = f"{c['yellow']}{severity.upper()}{c['reset']}"
+            else:
+                severity_str = f"{c['green']}{severity.upper()}{c['reset']}"
+            
+            # Print finding details
+            if is_excluded:
+                print(f"{c['bold']}[{severity_str}] {rule_name}{c['reset']} (Baseline: {finding.get('exclusion_reason', 'Unknown reason')})")
+            else:
+                # Check if this is a grouped finding
+                if finding.get('is_duplicate_group'):
+                    detection_count = finding.get('detection_count', 1)
+                    print(f"{c['bold']}[{severity_str}] {rule_name}{c['reset']} ({c['cyan']}{detection_count} detections grouped{c['reset']})")
+                    
+                    # Show detection methods if available
+                    detection_methods = finding.get('detection_methods', [])
+                    if detection_methods and len(detection_methods) > 1:
+                        methods = [m.get('rule', 'Unknown') for m in detection_methods[:3]]
+                        print(f"  Detection methods: {', '.join(methods)}")
+                else:
+                    print(f"{c['bold']}[{severity_str}] {rule_name}{c['reset']}")
+                
+                # Mark test credentials
+                if finding.get('is_test_credential'):
+                    test_indicators = finding.get('test_indicators', [])
+                    print(f"  {c['yellow']}⚠ Likely test/example credential{c['reset']} ({', '.join(test_indicators[:2])})")
+            
+            if line:
+                print(f"  Line: {line}")
+                
+            if variable:
+                print(f"  Variable: {variable}")
+                
+            if value:
+                # Truncate long values
+                if len(value) > 100:
+                    display_value = value[:97] + "..."
+                else:
+                    display_value = value
+                print(f"  Value: {c['yellow']}{display_value}{c['reset']}")
+                
+            print(f"  {description}")
+            
+            # Show confidence information if available
+            overall_confidence = finding.get('overall_confidence')
+            context_confidence = finding.get('confidence')  # Context confidence from existing analyzer
+            
+            if overall_confidence is not None:
+                confidence_color = self._get_confidence_color(overall_confidence)
+                print(f"  Overall Confidence: {confidence_color}{overall_confidence:.3f}{c['reset']}")
+            elif context_confidence is not None:
+                confidence_color = self._get_confidence_color(context_confidence)
+                print(f"  Confidence: {confidence_color}{context_confidence:.3f}{c['reset']}")
+            
+            # Show detailed confidence breakdown if requested
+            if finding.get('confidence_explanation') and not is_excluded:
+                explanation_lines = finding['confidence_explanation'].split('\n')
+                print(f"  {c['dim']}{explanation_lines[0]}{c['reset']}")
+                if len(explanation_lines) > 1:
+                    for line in explanation_lines[1:4]:  # Show top 3 factors
+                        if line.strip():
+                            print(f"  {c['dim']}{line}{c['reset']}")
+            
+            # Show context information if available
+            context_type = finding.get('context_type')
+            risk_level = finding.get('risk_level')
+            if context_type and not is_excluded:
+                risk_color = c['red'] if risk_level == 'high' else c['yellow'] if risk_level == 'medium' else c['green']
+                print(f"  Context: {context_type} ({risk_color}{risk_level} risk{c['reset']})")
+            
+            # Show exclusion ID if excluded
+            if is_excluded and finding.get('exclusion_id'):
+                print(f"  Exclusion ID: {finding.get('exclusion_id')}")
+                
+            print()

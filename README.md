@@ -5,7 +5,7 @@ CredScan is a credential and secret detection tool designed to identify sensitiv
 ## Core Features
 
 ### Detection Capabilities
-- **Enhanced pattern matching**: Uses a comprehensive library of patterns for detecting credentials across major cloud providers, services, and frameworks
+- **Enhanced pattern matching**: Uses a library of patterns for detecting credentials across major cloud providers, services, and frameworks
 - **Context-aware analysis**: Evaluates the surrounding code context to reduce false positives and assess risk levels
 - **Technology-specific detection**: Applies specialized patterns based on detected technologies (Docker, Kubernetes, CI/CD platforms, etc.)
 - **Multi-factor confidence scoring**: Combines pattern matching, context analysis, entropy assessment, and technology context for accurate detection
@@ -65,11 +65,17 @@ credscan --path /path/to/scan --show-test-credentials
 credscan --disable-enhanced-entropy          # Disable entropy analysis
 credscan --disable-context-analysis          # Disable context awareness
 credscan --disable-tech-detection            # Disable technology detection
+credscan --no-entropy                        # Disable basic entropy analysis
 
 # Adjust detection thresholds
 credscan --entropy-threshold 4.5             # Set entropy threshold
 credscan --min-confidence 0.7                # Set minimum confidence score
-credscan --context-confidence-threshold 0.2   # Set context filtering threshold
+credscan --context-confidence-threshold 0.2  # Set context filtering threshold
+credscan --min-length 8                      # Minimum credential length
+
+# Advanced confidence configuration
+credscan --show-confidence-details           # Show detailed confidence breakdown
+credscan --confidence-weights weights.json   # Custom confidence factor weights
 ```
 
 ### Output Control
@@ -80,8 +86,14 @@ credscan --disable-deduplication             # Show all individual findings
 credscan --summary-mode                      # Show concise summary
 credscan --group-by-severity                 # Group output by severity level
 
-# Output formats
+# Output formats and directories
 credscan --output json,sarif,excel           # Multiple formats
+credscan --output-dir ./security-reports     # Custom output directory
+credscan --no-color                          # Disable colored output
+
+# File filtering
+credscan --exclude "node_modules/,*.log"     # Exclude patterns
+credscan --include "src/,config/"            # Include only these patterns
 ```
 
 ### Technology-Specific Scanning
@@ -90,8 +102,14 @@ credscan --output json,sarif,excel           # Multiple formats
 # Focus on specific technologies
 credscan --tech-categories "Docker/Containers,Kubernetes,CI/CD Platforms"
 
-# Use custom pattern library
+# Pattern configuration
 credscan --pattern-library ./custom-patterns.json
+credscan --pattern-categories "cloud,api,database"
+credscan --legacy-patterns                   # Use legacy detection patterns
+
+# Binary file handling
+credscan --disable-binary-parsing            # Skip binary file analysis
+credscan --binary-max-size 50                # Max binary file size in MB
 ```
 
 ## Advanced Usage
@@ -176,6 +194,7 @@ Create `config.yaml` for complex setups:
 scan_path: "."
 max_workers: 8
 verbose: true
+min_length: 8
 
 # File filtering
 exclude_patterns:
@@ -214,6 +233,8 @@ output_directory: "./reports"
 disable_colors: false
 show_confidence_details: true
 enable_deduplication: true
+group_by_severity: false
+show_test_credentials: false
 
 # Baseline configuration
 baseline_file: ".credscan-baseline.json"
@@ -353,7 +374,7 @@ credscan --min-confidence 0.5 --context-confidence-threshold 0.3
 
 **Missing detections**: Lower thresholds and enable all detection methods
 ```bash
-credscan --min-confidence 0.1 --enable-enhanced-entropy --show-confidence-details
+credscan --min-confidence 0.1 --show-confidence-details --show-test-credentials
 ```
 
 **Performance issues**: Reduce worker count and exclude large directories
