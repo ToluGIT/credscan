@@ -15,6 +15,9 @@ from credscan.detection.rules import Rule, RuleLoader
 from .pattern_structure import PatternLibrary, PatternCategory, CredentialPattern
 from .pattern_library import load_default_patterns, load_patterns_from_file, save_patterns_to_file, merge_pattern_libraries
 from .rule_engine_integration import EnhancedRule, EnhancedRuleLoader, EnhancedScanEngine
+from .technology_detector import TechnologyDetector, TechnologyAwareEngine
+from .entropy_analyzer import EnhancedEntropyAnalyzer, EnhancedEntropyEngine
+from .context_aware_engine import ContextAwareEngine, ContextAwareConfig
 
 
 
@@ -39,6 +42,18 @@ class EnhancedConfig:
         # Extract other settings
         self.min_threshold = config_data.get("min_threshold", 0.7)  # Confidence threshold
         self.severity_threshold = config_data.get("severity_threshold", "medium")
+        
+        # Technology detection settings
+        self.enable_technology_detection = config_data.get("enable_technology_detection", True)
+        self.technology_categories = config_data.get("technology_categories", [])
+        
+        # Enhanced entropy settings
+        self.enable_enhanced_entropy = config_data.get("enable_enhanced_entropy", True)
+        self.entropy_thresholds = config_data.get("entropy_thresholds", {})
+        
+        # Context-aware detection settings
+        self.enable_context_aware = config_data.get("enable_context_aware", True)
+        self.context_config = config_data.get("context_config", {})
     
     def load_pattern_library(self) -> PatternLibrary:
         """
@@ -76,8 +91,8 @@ class EnhancedConfig:
         Returns:
             EnhancedScanEngine: The configured scan engine
         """
-        # Create the engine with existing config
-        engine = EnhancedScanEngine(self.config_data)
+        # Create the base engine with existing config
+        base_engine = EnhancedScanEngine(self.config_data)
         
         # Load pattern library
         pattern_library = self.load_pattern_library()
@@ -89,12 +104,25 @@ class EnhancedConfig:
         for rule_config in self.custom_rules:
             enhanced_rules.append(EnhancedRule(rule_config, pattern_library))
         
-        # Register rules with the engine
-        engine.register_rules(enhanced_rules)
-
-        engine.initialize_patterns(pattern_library)
+        # Register rules with the base engine
+        base_engine.register_rules(enhanced_rules)
+        base_engine.initialize_patterns(pattern_library)
         
-        return engine
+        # Start with the base engine
+        final_engine = base_engine
+        
+        # Wrap with technology-aware engine if enabled
+        if self.enable_technology_detection:
+            final_engine = TechnologyAwareEngine(final_engine, self.config_data)
+        
+        # Wrap with enhanced entropy engine if enabled
+        if self.enable_enhanced_entropy:
+            entropy_config = self.config_data.copy()
+            if self.entropy_thresholds:
+                entropy_config.update(self.entropy_thresholds)
+            final_engine = EnhancedEntropyEngine(final_engine, entropy_config)
+        
+        return final_engine
     
     @classmethod
     def from_yaml_file(cls, filepath: str) -> 'EnhancedConfig':
@@ -191,6 +219,27 @@ def get_example_config() -> Dict[str, Any]:
         ],
         "min_threshold": 0.7,
         "severity_threshold": "medium",
+        
+        # Technology detection settings
+        "enable_technology_detection": True,
+        "technology_categories": [
+            "Docker/Containers",
+            "Kubernetes", 
+            "CI/CD Platforms",
+            "Extended Cloud Platforms",
+            "Infrastructure as Code",
+            "Package Managers"
+        ],
+        
+        # Enhanced entropy settings
+        "enable_enhanced_entropy": True,
+        "entropy_thresholds": {
+            "base64": 4.5,
+            "hex": 3.8,
+            "jwt": 4.0,
+            "api_key": 4.2,
+            "generic": 4.0
+        },
         
         # Include the standard cred-scan configuration
         "baseline_file": ".cred-scan-baseline.json",

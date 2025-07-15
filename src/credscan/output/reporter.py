@@ -7,6 +7,19 @@ import datetime
 from typing import Dict, Any, List
 import logging
 
+# Enhanced output format dependencies
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+
+try:
+    from fpdf import FPDF
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 class Reporter:
@@ -38,11 +51,12 @@ class Reporter:
                 'white': '\033[37m',
                 'reset': '\033[0m',
                 'bold': '\033[1m',
+                'dim': '\033[2m',
                 'bg_red': '\033[41m',
                 'bg_green': '\033[42m'
             }
         else:
-            self.colors = {k: '' for k in ('red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'reset', 'bold', 'bg_red', 'bg_green')}
+            self.colors = {k: '' for k in ('red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'reset', 'bold', 'dim', 'bg_red', 'bg_green')}
     
     def report(self, findings: List[Dict[str, Any]], statistics: Dict[str, Any]):
         """
@@ -59,6 +73,14 @@ class Reporter:
                 self.report_json(findings, statistics)
             elif output_format == 'sarif':
                 self.report_sarif(findings, statistics)
+            elif output_format == 'excel':
+                self.report_excel(findings, statistics)
+            elif output_format == 'csv':
+                self.report_csv(findings, statistics)
+            elif output_format == 'html':
+                self.report_html(findings, statistics)
+            elif output_format == 'pdf':
+                self.report_pdf(findings, statistics)
             else:
                 logger.warning(f"Unsupported output format: {output_format}")
     
@@ -86,23 +108,40 @@ class Reporter:
             print(f"Credentials found: {c['bold']}{len(findings)}{c['reset']}\n")
 
         
-        # Group findings by file
-        findings_by_file = {}
-        for finding in findings:
-            path = finding.get('path', 'unknown')
-            if path not in findings_by_file:
-                findings_by_file[path] = []
-            findings_by_file[path].append(finding)
+        # Check if we should show test credentials
+        show_test_creds = self.config.get('show_test_credentials', False)
         
-        # Print findings by file
-        for filepath, file_findings in findings_by_file.items():
-            # Print file header
-            print(f"\n{c['bg_red']}{c['bold']} File: {filepath} {c['reset']}\n")
+        # Filter out test credentials if not requested
+        original_count = len(findings)
+        if not show_test_creds:
+            findings = [f for f in findings if not f.get('is_test_credential', False)]
+            test_filtered = original_count - len(findings)
+            if test_filtered > 0:
+                print(f"{c['dim']}Note: {test_filtered} test/example credentials filtered out (use --show-test-credentials to see them){c['reset']}\n")
+        
+        # Check if we should group by severity
+        group_by_severity = self.config.get('group_by_severity', False)
+        
+        if group_by_severity:
+            self._print_findings_by_severity(findings, c)
+        else:
+            # Group findings by file AFTER filtering
+            findings_by_file = {}
+            for finding in findings:
+                path = finding.get('path', 'unknown')
+                if path not in findings_by_file:
+                    findings_by_file[path] = []
+                findings_by_file[path].append(finding)
             
-            # Sort findings by line number
-            file_findings.sort(key=lambda f: f.get('line', 0))
-            
-            for finding in file_findings:
+            # Print findings by file
+            for filepath, file_findings in findings_by_file.items():
+                # Print file header
+                print(f"\n{c['bg_red']}{c['bold']} File: {filepath} {c['reset']}\n")
+                
+                # Sort findings by line number
+                file_findings.sort(key=lambda f: f.get('line', 0))
+                
+                self._print_findings_list(file_findings, c)
                 rule_name = finding.get('rule_name', 'Unknown Rule')
                 severity = finding.get('severity', 'medium')
                 line = finding.get('line', 0)
@@ -127,7 +166,23 @@ class Reporter:
                 if is_excluded:
                     print(f"{c['bold']}[{severity_str}] {rule_name}{c['reset']} (Baseline: {finding.get('exclusion_reason', 'Unknown reason')})")
                 else:
-                    print(f"{c['bold']}[{severity_str}] {rule_name}{c['reset']}")
+                    # Check if this is a grouped finding
+                    if finding.get('is_duplicate_group'):
+                        detection_count = finding.get('detection_count', 1)
+                        print(f"{c['bold']}[{severity_str}] {rule_name}{c['reset']} ({c['cyan']}{detection_count} detections grouped{c['reset']})")
+                        
+                        # Show detection methods if available
+                        detection_methods = finding.get('detection_methods', [])
+                        if detection_methods and len(detection_methods) > 1:
+                            methods = [m.get('rule', 'Unknown') for m in detection_methods[:3]]
+                            print(f"  Detection methods: {', '.join(methods)}")
+                    else:
+                        print(f"{c['bold']}[{severity_str}] {rule_name}{c['reset']}")
+                    
+                    # Mark test credentials
+                    if finding.get('is_test_credential'):
+                        test_indicators = finding.get('test_indicators', [])
+                        print(f"  {c['yellow']}⚠ Likely test/example credential{c['reset']} ({', '.join(test_indicators[:2])})")
                 
                 if line:
                     print(f"  Line: {line}")
@@ -144,6 +199,33 @@ class Reporter:
                     print(f"  Value: {c['yellow']}{display_value}{c['reset']}")
                     
                 print(f"  {description}")
+                
+                # Show confidence information if available
+                overall_confidence = finding.get('overall_confidence')
+                context_confidence = finding.get('confidence')  # Context confidence from existing analyzer
+                
+                if overall_confidence is not None:
+                    confidence_color = self._get_confidence_color(overall_confidence)
+                    print(f"  Overall Confidence: {confidence_color}{overall_confidence:.3f}{c['reset']}")
+                elif context_confidence is not None:
+                    confidence_color = self._get_confidence_color(context_confidence)
+                    print(f"  Confidence: {confidence_color}{context_confidence:.3f}{c['reset']}")
+                
+                # Show detailed confidence breakdown if requested
+                if finding.get('confidence_explanation') and not is_excluded:
+                    explanation_lines = finding['confidence_explanation'].split('\n')
+                    print(f"  {c['dim']}{explanation_lines[0]}{c['reset']}")
+                    if len(explanation_lines) > 1:
+                        for line in explanation_lines[1:4]:  # Show top 3 factors
+                            if line.strip():
+                                print(f"  {c['dim']}{line}{c['reset']}")
+                
+                # Show context information if available
+                context_type = finding.get('context_type')
+                risk_level = finding.get('risk_level')
+                if context_type and not is_excluded:
+                    risk_color = c['red'] if risk_level == 'high' else c['yellow'] if risk_level == 'medium' else c['green']
+                    print(f"  Context: {context_type} ({risk_color}{risk_level} risk{c['reset']})")
                 
                 # Show exclusion ID if excluded
                 if is_excluded and finding.get('exclusion_id'):
@@ -313,3 +395,298 @@ class Reporter:
             return 5.0
         else:
             return 3.0
+    
+    def report_excel(self, findings: List[Dict[str, Any]], statistics: Dict[str, Any]):
+        """
+        Output findings in Excel format to a file.
+        
+        Args:
+            findings: List of detection findings
+            statistics: Dictionary of scan statistics
+        """
+        if not PANDAS_AVAILABLE:
+            logger.warning("Pandas not available, skipping Excel report")
+            return
+        
+        try:
+            # Prepare data for DataFrame
+            data = []
+            for finding in findings:
+                data.append({
+                    "Category": finding.get('category', 'Unknown'),
+                    "Severity": finding.get('severity', 'medium'),
+                    "Rule": finding.get('rule_name', ''),
+                    "Variable": finding.get('variable', ''),
+                    "Value": finding.get('value', ''),
+                    "File": finding.get('path', ''),
+                    "Line": finding.get('line', 0),
+                    "Description": finding.get('description', '')
+                })
+            
+            if not data:
+                logger.info("No data to export to Excel")
+                return
+            
+            # Create DataFrame
+            df = pd.DataFrame(data)
+            
+            # Ensure output directory exists
+            os.makedirs(self.output_directory, exist_ok=True)
+            
+            # Create output file
+            output_file = os.path.join(self.output_directory, f"credscan-report-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.xlsx")
+            
+            # Write to Excel with formatting
+            with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='Findings', index=False)
+                
+                # Add statistics sheet
+                stats_data = [[k, v] for k, v in statistics.items()]
+                stats_df = pd.DataFrame(stats_data, columns=['Metric', 'Value'])
+                stats_df.to_excel(writer, sheet_name='Statistics', index=False)
+            
+            logger.info(f"Excel report saved to {output_file}")
+            print(f"\nExcel report saved to {output_file}")
+            
+        except Exception as e:
+            logger.error(f"Error writing Excel report: {e}")
+    
+    def report_csv(self, findings: List[Dict[str, Any]], statistics: Dict[str, Any]):
+        """
+        Output findings in CSV format to a file.
+        
+        Args:
+            findings: List of detection findings
+            statistics: Dictionary of scan statistics
+        """
+        if not PANDAS_AVAILABLE:
+            logger.warning("Pandas not available, skipping CSV report")
+            return
+        
+        try:
+            # Prepare data for DataFrame
+            data = []
+            for finding in findings:
+                data.append({
+                    "Category": finding.get('category', 'Unknown'),
+                    "Severity": finding.get('severity', 'medium'),
+                    "Rule": finding.get('rule_name', ''),
+                    "Variable": finding.get('variable', ''),
+                    "Value": finding.get('value', ''),
+                    "File": finding.get('path', ''),
+                    "Line": finding.get('line', 0),
+                    "Description": finding.get('description', '')
+                })
+            
+            if not data:
+                logger.info("No data to export to CSV")
+                return
+            
+            # Create DataFrame
+            df = pd.DataFrame(data)
+            
+            # Ensure output directory exists
+            os.makedirs(self.output_directory, exist_ok=True)
+            
+            # Create output file
+            output_file = os.path.join(self.output_directory, f"credscan-report-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv")
+            
+            # Write to CSV
+            df.to_csv(output_file, index=False)
+            
+            logger.info(f"CSV report saved to {output_file}")
+            print(f"\nCSV report saved to {output_file}")
+            
+        except Exception as e:
+            logger.error(f"Error writing CSV report: {e}")
+    
+    def report_html(self, findings: List[Dict[str, Any]], statistics: Dict[str, Any]):
+        """
+        Output findings in HTML format to a file.
+        
+        Args:
+            findings: List of detection findings
+            statistics: Dictionary of scan statistics
+        """
+        try:
+            # Prepare data for HTML
+            data = []
+            for finding in findings:
+                severity_color = {
+                    'high': '#ff4444',
+                    'medium': '#ffaa00', 
+                    'low': '#44aa44'
+                }.get(finding.get('severity', 'medium'), '#888888')
+                
+                data.append({
+                    "Category": finding.get('category', 'Unknown'),
+                    "Severity": f'<span style="color: {severity_color}; font-weight: bold">{finding.get("severity", "medium").upper()}</span>',
+                    "Rule": finding.get('rule_name', ''),
+                    "Variable": finding.get('variable', ''),
+                    "Value": finding.get('value', ''),
+                    "File": finding.get('path', ''),
+                    "Line": finding.get('line', 0),
+                    "Description": finding.get('description', '')
+                })
+            
+            # Create HTML content
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>CredScan Report</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                    h1 {{ color: #333; }}
+                    table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
+                    th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                    th {{ background-color: #f2f2f2; }}
+                    tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                    .stats {{ background-color: #e7f3ff; padding: 15px; border-radius: 5px; margin-bottom: 20px; }}
+                </style>
+            </head>
+            <body>
+                <h1>CredScan Security Report</h1>
+                <div class="stats">
+                    <h3>Scan Statistics</h3>
+            """
+            
+            for key, value in statistics.items():
+                html_content += f"<p><strong>{key.replace('_', ' ').title()}:</strong> {value}</p>"
+            
+            html_content += f"""
+                    <p><strong>Report Generated:</strong> {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                </div>
+                
+                <h3>Findings ({len(findings)} total)</h3>
+            """
+            
+            if data:
+                if PANDAS_AVAILABLE:
+                    df = pd.DataFrame(data)
+                    html_content += df.to_html(escape=False, index=False)
+                else:
+                    # Manual HTML table creation
+                    html_content += "<table><tr>"
+                    for key in data[0].keys():
+                        html_content += f"<th>{key}</th>"
+                    html_content += "</tr>"
+                    
+                    for row in data:
+                        html_content += "<tr>"
+                        for value in row.values():
+                            html_content += f"<td>{value}</td>"
+                        html_content += "</tr>"
+                    html_content += "</table>"
+            else:
+                html_content += "<p>No credentials found.</p>"
+            
+            html_content += """
+            </body>
+            </html>
+            """
+            
+            # Ensure output directory exists
+            os.makedirs(self.output_directory, exist_ok=True)
+            
+            # Create output file
+            output_file = os.path.join(self.output_directory, f"credscan-report-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.html")
+            
+            # Write HTML file
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+            
+            logger.info(f"HTML report saved to {output_file}")
+            print(f"\nHTML report saved to {output_file}")
+            
+        except Exception as e:
+            logger.error(f"Error writing HTML report: {e}")
+    
+    def report_pdf(self, findings: List[Dict[str, Any]], statistics: Dict[str, Any]):
+        """
+        Output findings in PDF format to a file.
+        
+        Args:
+            findings: List of detection findings
+            statistics: Dictionary of scan statistics
+        """
+        if not PDF_AVAILABLE:
+            logger.warning("FPDF not available, skipping PDF report")
+            return
+        
+        try:
+            # Create PDF
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=16)
+            
+            # Title
+            pdf.cell(0, 10, "CredScan Security Report", ln=True, align="C")
+            pdf.ln(10)
+            
+            # Statistics
+            pdf.set_font("Arial", size=12)
+            pdf.cell(0, 10, "Scan Statistics:", ln=True)
+            pdf.set_font("Arial", size=10)
+            
+            for key, value in statistics.items():
+                pdf.cell(0, 8, f"{key.replace('_', ' ').title()}: {value}", ln=True)
+            
+            pdf.ln(5)
+            pdf.cell(0, 8, f"Report Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True)
+            pdf.ln(10)
+            
+            # Findings
+            pdf.set_font("Arial", size=12)
+            pdf.cell(0, 10, f"Findings ({len(findings)} total):", ln=True)
+            pdf.ln(5)
+            
+            if findings:
+                pdf.set_font("Arial", size=9)
+                for i, finding in enumerate(findings, 1):
+                    if pdf.get_y() > 250:  # Check if we need a new page
+                        pdf.add_page()
+                    
+                    severity = finding.get('severity', 'medium').upper()
+                    category = finding.get('category', 'Unknown')
+                    variable = finding.get('variable', '')
+                    file_path = finding.get('path', '')
+                    line_num = finding.get('line', 0)
+                    
+                    pdf.cell(0, 6, f"{i}. [{severity}] {category}", ln=True)
+                    if variable:
+                        pdf.cell(0, 6, f"   Variable: {variable}", ln=True)
+                    if file_path:
+                        pdf.cell(0, 6, f"   File: {file_path} (Line {line_num})", ln=True)
+                    pdf.ln(2)
+            else:
+                pdf.cell(0, 10, "No credentials found.", ln=True)
+            
+            # Ensure output directory exists
+            os.makedirs(self.output_directory, exist_ok=True)
+            
+            # Create output file
+            output_file = os.path.join(self.output_directory, f"credscan-report-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.pdf")
+            
+            # Save PDF
+            pdf.output(output_file)
+            
+            logger.info(f"PDF report saved to {output_file}")
+            print(f"\nPDF report saved to {output_file}")
+            
+        except Exception as e:
+            logger.error(f"Error writing PDF report: {e}")
+    
+    def _get_confidence_color(self, confidence: float) -> str:
+        """Get appropriate color for confidence score."""
+        if self.disable_colors:
+            return ''
+        
+        if confidence >= 0.8:
+            return self.colors['green']  # High confidence - green
+        elif confidence >= 0.6:
+            return self.colors['yellow']  # Medium confidence - yellow
+        elif confidence >= 0.4:
+            return self.colors['magenta']  # Low-medium confidence - magenta
+        else:
+            return self.colors['red']  # Low confidence - red

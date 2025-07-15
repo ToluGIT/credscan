@@ -2,6 +2,7 @@
 Generic code file parser for credential detection.
 """
 import re
+import json
 from typing import Dict, Any, List, Tuple, Set
 import logging
 import os
@@ -24,11 +25,8 @@ class CodeParser(BaseParser):
         """
         super().__init__(config)
         
-        # Define supported file extensions
-        self.supported_extensions = self.config.get('code_extensions', [
-            '.py', '.js', '.java', '.go', '.php', '.rb', '.cs', '.cpp', '.c', 
-            '.h', '.swift', '.kt', '.ts', '.sh', '.bash', '.pl', '.pm', '.txt'
-        ])
+        # Load supported file extensions from config file
+        self.supported_extensions = self._load_supported_extensions()
         
         # Regular expressions for parsing
         self.string_pattern = re.compile(r'(["\'])((?:\\.|(?!\1).)*)\1')
@@ -62,6 +60,37 @@ class CodeParser(BaseParser):
             '.kt': {'start': '/*', 'end': '*/'},
             '.py': {'start': '"""', 'end': '"""'}
         }
+    
+    def _load_supported_extensions(self) -> List[str]:
+        """
+        Load supported file extensions from configuration.
+        
+        Returns:
+            List[str]: List of supported file extensions
+        """
+        # Try to load from config first
+        if 'code_extensions' in self.config:
+            return self.config['code_extensions']
+        
+        # Try to load from supported_extensions.json
+        try:
+            config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
+            extensions_file = os.path.join(config_dir, 'supported_extensions.json')
+            
+            if os.path.exists(extensions_file):
+                with open(extensions_file, 'r') as f:
+                    data = json.load(f)
+                    return data.get('supported_extensions', [])
+        except Exception as e:
+            logger.warning(f"Could not load supported_extensions.json: {e}")
+        
+        # Fallback to default extensions
+        return [
+            '.py', '.js', '.java', '.go', '.php', '.rb', '.cs', '.cpp', '.c', 
+            '.h', '.swift', '.kt', '.ts', '.sh', '.bash', '.pl', '.pm', '.txt',
+            '.html', '.css', '.json', '.xml', '.env', '.config', '.yaml', '.yml',
+            '.bak', '.log', '.md', '.ini', '.conf', '.cfg', '.properties'
+        ]
     
     def can_parse(self, filepath: str) -> bool:
         """

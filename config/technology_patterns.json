@@ -1,0 +1,78 @@
+{
+  "Docker/Containers": [
+    "docker_registry_password", "docker_registry_token", "docker_registry_user",
+    "docker_hub_token", "docker_hub_secret", "docker_compose_secret",
+    "container_registry_token", "container_secret", "registry_auth_token",
+    "docker_secret", "compose_secret", "container_env_secret"
+  ],
+  "Kubernetes": [
+    "kubernetes_token", "kube_token", "k8s_secret", "kubectl_token",
+    "service_account_token", "kube_config_token", "helm_secret",
+    "kustomize_secret", "k8s_auth_token", "kubernetes_secret_key",
+    "pod_secret", "namespace_secret", "cluster_secret", "ingress_secret"
+  ],
+  "CI/CD Platforms": [
+    "circleci_token", "circleci_api_key", "travis_token", "travis_ci_token",
+    "jenkins_api_token", "jenkins_password", "jenkins_token", "jenkins_secret",
+    "github_actions_token", "github_actions_secret", "actions_secret",
+    "azure_devops_token", "azure_pipeline_token", "buildkite_token",
+    "drone_token", "gitlab_ci_token", "gitlab_runner_token",
+    "pipeline_token", "pipeline_key", "ci_secret", "ci_cd_secret",
+    "ci_cd_token", "deployment_key", "webhook_secret", "build_token",
+    "release_token", "artifact_token"
+  ],
+  "Extended Cloud Platforms": [
+    "ibm_cloud_token", "ibm_cloud_key", "oracle_cloud_token", "oci_api_key",
+    "oci_secret", "alibaba_cloud_key", "aliyun_secret", "hetzner_api_key",
+    "hetzner_token", "linode_token", "linode_api_key", "vultr_key",
+    "vultr_token", "scaleway_secret", "scaleway_token", "render_api_key",
+    "render_token", "flyio_token", "fly_api_key", "digitalocean_token",
+    "do_token", "do_api_key", "cloudflare_global_api_key"
+  ],
+  "Infrastructure as Code": [
+    "terraform_token", "terraform_api_key", "vault_token", "vault_secret",
+    "ansible_vault_password", "ansible_secret", "hashicorp_token",
+    "consul_token", "nomad_token", "pulumi_access_token", "pulumi_secret",
+    "chef_secret", "puppet_secret", "saltstack_secret", "packer_secret"
+  ],
+  "Package Managers": [
+    "npm_token", "npm_auth_token", "yarn_token", "pypi_token", "pypi_password",
+    "composer_token", "composer_auth", "nuget_api_key", "gem_api_key",
+    "cargo_token", "maven_password", "gradle_password", "cocoapods_token",
+    "packagist_token", "homebrew_token"
+  ],
+  "Framework Specific": [
+    "django_secret_key", "flask_secret_key", "laravel_app_key", "symfony_secret",
+    "rails_secret_key_base", "express_session_secret", "nextjs_secret",
+    "react_app_secret", "vue_app_secret", "angular_secret", "spring_secret",
+    "wordpress_db_password", "wp_auth_key", "wp_secure_auth_key",
+    "wp_logged_in_key", "wp_nonce_key", "drupal_hash_salt"
+  ],
+  "Extended SSH/Certificate": [
+    "ssh_private_key", "ssh_public_key", "rsa_private_key", "dsa_private_key",
+    "ecdsa_private_key", "ed25519_private_key", "jwt_secret_key", "jwt_private_key",
+    "ssl_private_key", "tls_private_key", "certificate_password", "keystore_password",
+    "truststore_password", "pkcs12_password", "pem_passphrase"
+  ],
+  "Extended Database": [
+    "redis_password", "redis_auth", "elasticsearch_password", "elastic_password",
+    "mongodb_password", "mongo_password", "cassandra_password", "neo4j_password",
+    "influxdb_password", "clickhouse_password", "couchdb_password",
+    "dynamodb_secret", "firestore_key", "supabase_anon_key", "supabase_service_key",
+    "planetscale_password", "cockroachdb_password"
+  ],
+  "Monitoring/Observability": [
+    "datadog_api_key", "datadog_app_key", "newrelic_license_key", "newrelic_api_key",
+    "sentry_dsn", "sentry_auth_token", "logdna_key", "loggly_token",
+    "honeycomb_token", "grafana_token", "prometheus_token", "opsgenie_key",
+    "pagerduty_token", "sumologic_key", "splunk_token", "rollbar_token",
+    "segment_write_key", "heap_token", "amplitude_key", "mixpanel_token",
+    "bugsnag_api_key", "raygun_api_key"
+  ],
+  "Additional Security Tools": [
+    "vault_approle_secret", "consul_acl_token", "etcd_password", "ldap_password",
+    "kerberos_password", "saml_private_key", "oauth_client_secret", "oidc_secret",
+    "keycloak_secret", "auth0_client_secret", "okta_api_token", "ping_secret",
+    "crowdstrike_token", "malwarebytes_key", "virustotal_api_key", "shodan_api_key"
+  ]
+}

@@ -1,0 +1,455 @@
+{
+  "api_contexts": {
+    "express_auth": {
+      "patterns": [
+        "req\\.headers\\[?['\"]authorization['\"]",
+        "req\\.headers\\[?['\"]x-api-key['\"]",
+        "req\\.header\\(['\"]authorization['\"]",
+        "app\\.(get|post|put|delete|patch)\\s*\\(",
+        "router\\.(get|post|put|delete|patch)\\s*\\(",
+        "bearer\\s+token",
+        "jwt\\s*\\."
+      ],
+      "confidence_modifier": 1.3,
+      "description": "Express.js authentication patterns"
+    },
+    "django_auth": {
+      "patterns": [
+        "request\\.META\\[?['\"]HTTP_AUTHORIZATION['\"]",
+        "@api_view\\s*\\(",
+        "@permission_classes\\s*\\(",
+        "IsAuthenticated",
+        "TokenAuthentication",
+        "request\\.user\\.is_authenticated"
+      ],
+      "confidence_modifier": 1.3,
+      "description": "Django REST framework authentication"
+    },
+    "spring_auth": {
+      "patterns": [
+        "@RequestMapping\\s*\\(",
+        "@PostMapping\\s*\\(",
+        "@GetMapping\\s*\\(",
+        "@RestController",
+        "@PreAuthorize\\s*\\(",
+        "HttpServletRequest",
+        "Authentication\\s+auth"
+      ],
+      "confidence_modifier": 1.3,
+      "description": "Spring Boot authentication patterns"
+    },
+    "webhook_signatures": {
+      "patterns": [
+        "x-hub-signature",
+        "x-signature",
+        "x-slack-signature",
+        "x-github-event",
+        "webhook",
+        "signature\\s*verification",
+        "hmac\\s*\\("
+      ],
+      "confidence_modifier": 1.4,
+      "description": "Webhook signature validation patterns"
+    },
+    "oauth_flow": {
+      "patterns": [
+        "client_secret",
+        "client_id",
+        "access_token",
+        "refresh_token",
+        "oauth",
+        "grant_type",
+        "authorization_code"
+      ],
+      "confidence_modifier": 1.3,
+      "description": "OAuth authentication flow patterns"
+    },
+    "rest_api_endpoints": {
+      "patterns": [
+        "/api/v[0-9]+",
+        "/api/",
+        "endpoint\\s*[=:]",
+        "baseURL\\s*[=:]",
+        "base_url\\s*[=:]",
+        "api_url\\s*[=:]",
+        "service_url\\s*[=:]",
+        "\\b(GET|POST|PUT|DELETE|PATCH)\\s+['\"]?/",
+        "fetch\\s*\\(['\"]?/api",
+        "axios\\.(get|post|put|delete|patch)\\s*\\(['\"]?/",
+        "requests\\.(get|post|put|delete|patch)\\s*\\(['\"]?"
+      ],
+      "confidence_modifier": 1.4,
+      "description": "REST API endpoint patterns"
+    },
+    "graphql_endpoints": {
+      "patterns": [
+        "graphql",
+        "query\\s*\\{",
+        "mutation\\s*\\{",
+        "subscription\\s*\\{",
+        "\\$\\w+:\\s*\\w+!?",
+        "resolver",
+        "schema\\s*\\{"
+      ],
+      "confidence_modifier": 1.3,
+      "description": "GraphQL API patterns"
+    },
+    "api_middleware": {
+      "patterns": [
+        "middleware",
+        "interceptor",
+        "filter",
+        "cors",
+        "rate[_-]?limit",
+        "auth[_-]?guard",
+        "validation",
+        "sanitiz",
+        "before[_-]?action",
+        "after[_-]?action"
+      ],
+      "confidence_modifier": 1.2,
+      "description": "API middleware and filters"
+    },
+    "external_api_clients": {
+      "patterns": [
+        "github\\.com/api",
+        "api\\.stripe\\.com",
+        "api\\.twilio\\.com",
+        "slack\\.com/api",
+        "api\\.sendgrid\\.com",
+        "api\\.mailgun\\.net",
+        "googleapis\\.com",
+        "amazonaws\\.com",
+        "api\\..*\\.com",
+        "\\w+\\.api\\.",
+        "third[_-]?party",
+        "external[_-]?api"
+      ],
+      "confidence_modifier": 1.5,
+      "description": "External API service clients"
+    }
+  },
+  "config_contexts": {
+    "database_credentials": {
+      "patterns": [
+        "database\\s*[:,]",
+        "db\\s*[:,]",
+        "datasource\\s*[:,]",
+        "connection\\s*[:,]",
+        "mysql\\s*[:,]",
+        "postgres\\s*[:,]",
+        "postgresql\\s*[:,]",
+        "mongodb\\s*[:,]",
+        "redis\\s*[:,]",
+        "elasticsearch\\s*[:,]",
+        "cassandra\\s*[:,]",
+        "oracle\\s*[:,]",
+        "sqlite\\s*[:,]",
+        "mariadb\\s*[:,]",
+        "dynamodb\\s*[:,]",
+        "password\\s*[:,]",
+        "username\\s*[:,]",
+        "user\\s*[:,]",
+        "host\\s*[:,]",
+        "hostname\\s*[:,]",
+        "port\\s*[:,]",
+        "url\\s*[:,]",
+        "uri\\s*[:,]",
+        "connection[_-]?string\\s*[:,]"
+      ],
+      "confidence_modifier": 1.5,
+      "description": "Database configuration sections"
+    },
+    "api_configuration": {
+      "patterns": [
+        "api\\s*[:,]",
+        "service\\s*[:,]",
+        "services\\s*[:,]",
+        "endpoint\\s*[:,]",
+        "endpoints\\s*[:,]",
+        "baseurl\\s*[:,]",
+        "base[_-]?url\\s*[:,]",
+        "api[_-]?key\\s*[:,]",
+        "secret[_-]?key\\s*[:,]",
+        "client[_-]?secret\\s*[:,]",
+        "client[_-]?id\\s*[:,]",
+        "token\\s*[:,]",
+        "access[_-]?token\\s*[:,]",
+        "refresh[_-]?token\\s*[:,]",
+        "bearer[_-]?token\\s*[:,]",
+        "webhook\\s*[:,]",
+        "callback\\s*[:,]",
+        "redirect[_-]?uri\\s*[:,]"
+      ],
+      "confidence_modifier": 1.4,
+      "description": "API service configuration sections"
+    },
+    "environment_config": {
+      "patterns": [
+        "environment\\s*[:,]",
+        "env\\s*[:,]",
+        "config\\s*[:,]",
+        "configuration\\s*[:,]",
+        "settings\\s*[:,]",
+        "secrets\\s*[:,]",
+        "vault\\s*[:,]",
+        "credentials\\s*[:,]",
+        "variables\\s*[:,]",
+        "properties\\s*[:,]",
+        "params\\s*[:,]",
+        "parameters\\s*[:,]"
+      ],
+      "confidence_modifier": 1.3,
+      "description": "Environment and configuration sections"
+    },
+    "security_config": {
+      "patterns": [
+        "security\\s*[:,]",
+        "auth\\s*[:,]",
+        "authentication\\s*[:,]",
+        "authorization\\s*[:,]",
+        "jwt\\s*[:,]",
+        "encryption\\s*[:,]",
+        "ssl\\s*[:,]",
+        "tls\\s*[:,]",
+        "certificate\\s*[:,]",
+        "cert\\s*[:,]",
+        "private[_-]?key\\s*[:,]",
+        "public[_-]?key\\s*[:,]",
+        "signature\\s*[:,]",
+        "hash\\s*[:,]",
+        "secret\\s*[:,]",
+        "password\\s*[:,]",
+        "passphrase\\s*[:,]",
+        "salt\\s*[:,]"
+      ],
+      "confidence_modifier": 1.5,
+      "description": "Security configuration sections"
+    },
+    "cloud_config": {
+      "patterns": [
+        "aws\\s*[:,]",
+        "azure\\s*[:,]",
+        "gcp\\s*[:,]",
+        "google[_-]?cloud\\s*[:,]",
+        "cloud\\s*[:,]",
+        "s3\\s*[:,]",
+        "ec2\\s*[:,]",
+        "rds\\s*[:,]",
+        "lambda\\s*[:,]",
+        "cloudfront\\s*[:,]",
+        "iam\\s*[:,]",
+        "region\\s*[:,]",
+        "availability[_-]?zone\\s*[:,]",
+        "access[_-]?key[_-]?id\\s*[:,]",
+        "secret[_-]?access[_-]?key\\s*[:,]",
+        "subscription[_-]?id\\s*[:,]",
+        "tenant[_-]?id\\s*[:,]",
+        "project[_-]?id\\s*[:,]"
+      ],
+      "confidence_modifier": 1.6,
+      "description": "Cloud provider configuration sections"
+    },
+    "logging_config": {
+      "patterns": [
+        "logging\\s*[:,]",
+        "logs\\s*[:,]",
+        "logger\\s*[:,]",
+        "log[_-]?level\\s*[:,]",
+        "appender\\s*[:,]",
+        "formatter\\s*[:,]",
+        "handler\\s*[:,]",
+        "syslog\\s*[:,]",
+        "file[_-]?log\\s*[:,]",
+        "console[_-]?log\\s*[:,]",
+        "audit\\s*[:,]",
+        "monitoring\\s*[:,]",
+        "metrics\\s*[:,]",
+        "telemetry\\s*[:,]"
+      ],
+      "confidence_modifier": 1.1,
+      "description": "Logging and monitoring configuration sections"
+    },
+    "messaging_config": {
+      "patterns": [
+        "queue\\s*[:,]",
+        "messaging\\s*[:,]",
+        "broker\\s*[:,]",
+        "rabbitmq\\s*[:,]",
+        "kafka\\s*[:,]",
+        "redis\\s*[:,]",
+        "sqs\\s*[:,]",
+        "sns\\s*[:,]",
+        "pubsub\\s*[:,]",
+        "topic\\s*[:,]",
+        "subscription\\s*[:,]",
+        "exchange\\s*[:,]",
+        "routing[_-]?key\\s*[:,]"
+      ],
+      "confidence_modifier": 1.3,
+      "description": "Message queue and broker configuration sections"
+    },
+    "cache_config": {
+      "patterns": [
+        "cache\\s*[:,]",
+        "caching\\s*[:,]",
+        "redis\\s*[:,]",
+        "memcached\\s*[:,]",
+        "memcache\\s*[:,]",
+        "ttl\\s*[:,]",
+        "expiration\\s*[:,]",
+        "expire\\s*[:,]",
+        "timeout\\s*[:,]"
+      ],
+      "confidence_modifier": 1.2,
+      "description": "Cache configuration sections"
+    }
+  },
+  "file_contexts": {
+    "production_indicators": {
+      "patterns": [
+        "prod",
+        "production",
+        "live",
+        "release"
+      ],
+      "confidence_modifier": 1.8,
+      "description": "Production environment indicators"
+    },
+    "staging_indicators": {
+      "patterns": [
+        "staging",
+        "stage",
+        "uat",
+        "pre-prod"
+      ],
+      "confidence_modifier": 1.4,
+      "description": "Staging environment indicators"
+    },
+    "development_indicators": {
+      "patterns": [
+        "dev",
+        "development",
+        "local",
+        "localhost"
+      ],
+      "confidence_modifier": 0.8,
+      "description": "Development environment indicators"
+    },
+    "test_indicators": {
+      "patterns": [
+        "test",
+        "testing",
+        "spec",
+        "mock",
+        "fixture",
+        "sample",
+        "example",
+        "demo"
+      ],
+      "confidence_modifier": 0.3,
+      "description": "Test/example code indicators"
+    }
+  },
+  "code_contexts": {
+    "documentation": {
+      "patterns": [
+        "^\\s*#",
+        "^\\s*//",
+        "^\\s*/\\*",
+        "^\\s*\\*",
+        "readme",
+        "documentation",
+        "example",
+        "sample",
+        "todo",
+        "fixme"
+      ],
+      "confidence_modifier": 0.2,
+      "description": "Documentation and comment patterns"
+    },
+    "error_handling": {
+      "patterns": [
+        "try\\s*\\{",
+        "catch\\s*\\(",
+        "except\\s*:",
+        "error\\s*:",
+        "exception\\s*:",
+        "log\\s*\\(",
+        "print\\s*\\(",
+        "console\\.log\\s*\\("
+      ],
+      "confidence_modifier": 0.6,
+      "description": "Error handling and logging contexts"
+    },
+    "constants_global": {
+      "patterns": [
+        "const\\s+[A-Z_]+",
+        "final\\s+[A-Z_]+",
+        "static\\s+final\\s+[A-Z_]+",
+        "export\\s+const\\s+[A-Z_]+",
+        "^[A-Z_]+\\s*="
+      ],
+      "confidence_modifier": 1.2,
+      "description": "Global constants and configuration"
+    },
+    "function_parameters": {
+      "patterns": [
+        "function\\s*\\(",
+        "def\\s+\\w+\\s*\\(",
+        "public\\s+\\w+\\s*\\(",
+        "private\\s+\\w+\\s*\\(",
+        "\\)\\s*=>",
+        "lambda\\s+"
+      ],
+      "confidence_modifier": 0.9,
+      "description": "Function parameters and local scope"
+    }
+  },
+  "framework_contexts": {
+    "docker": {
+      "patterns": [
+        "FROM\\s+",
+        "RUN\\s+",
+        "ENV\\s+",
+        "COPY\\s+",
+        "ADD\\s+",
+        "WORKDIR\\s+",
+        "EXPOSE\\s+",
+        "dockerfile",
+        "docker-compose"
+      ],
+      "confidence_modifier": 1.3,
+      "description": "Docker container context"
+    },
+    "kubernetes": {
+      "patterns": [
+        "apiVersion\\s*:",
+        "kind\\s*:",
+        "metadata\\s*:",
+        "spec\\s*:",
+        "containers\\s*:",
+        "env\\s*:",
+        "configMap",
+        "secret\\s*:",
+        "namespace\\s*:"
+      ],
+      "confidence_modifier": 1.4,
+      "description": "Kubernetes deployment context"
+    },
+    "terraform": {
+      "patterns": [
+        "resource\\s+\"",
+        "variable\\s+\"",
+        "output\\s+\"",
+        "provider\\s+\"",
+        "data\\s+\"",
+        "locals\\s*\\{",
+        "\\.tf$",
+        "\\.tfvars$"
+      ],
+      "confidence_modifier": 1.3,
+      "description": "Terraform infrastructure context"
+    }
+  }
+}

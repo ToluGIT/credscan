@@ -1,0 +1,97 @@
+{
+  "General Credentials": [
+    "password", "passwd", "pwd", "pass", "secret", "token", "auth_token", "authorization",
+    "access_token", "access_key", "secret_key", "api_key", "apikey", "api_secret",
+    "app_key", "app_secret", "private_key", "public_key", "client_secret", "client_id",
+    "security_key", "jwt_token", "jwt_secret", "bearer", "session_token", "refresh_token",
+    "api_token", "csrf_token", "xsrf_token", "session_id", "sessionid", "csrftoken",
+    "key", "auth", "credentials", "id_token", "identity_token", "secretValue", "secure_key","secure_code",
+    "temp_pass","one_time_token","otp_secret","auth_hash","verification_token", "account_pin","identity_token","magic_link_token", "session_code"
+  ],
+  "Database Credentials": [
+    "db_password", "database_password", "db_pass", "db_pwd", "db_user", "db_username",
+    "sql_password", "mysql_pwd", "mysql_pass", "mysql_user", "postgres_pass", "postgres_pwd",
+    "oracle_pwd", "mongo_pass", "mongodb_pass", "mssql_password", "redshift_key","MYSQL_PASSWORD", "database_key"
+  ],
+  "AWS": [
+    "aws_secret_access_key", "aws_access_key_id", "aws_session_token", "aws_key", "aws_secret",
+    "aws_access_key", "aws_id", "aws_creds", "s3_access_key", "s3_secret", "iam_token",
+    "aws_security_token", "cloudwatch_token", "aws_credentials", "aws_token", "aws_api_key",
+    "aws_client_secret", "amazon_key", "amazon_secret", "amazon_token"
+  ],
+  "GCP": [
+    "gcp_secret_key", "gcp_access_token", "gcp_api_key", "google_api_key", "google_secret",
+    "firebase_secret", "firebase_token", "gcloud_token", "gcp_credentials", "gcp_key_file",
+    "google_cloud_key", "firebase_api_key", "firebase_app_secret", "google_app_id", "google_client_secret",
+    "google_oauth", "gcp_project_key", "gcp_user_token"
+  ],
+  "Azure": [
+    "azure_key", "azure_secret", "azure_client_id", "azure_tenant_id", "azure_subscription_id",
+    "azure_password", "azure_token", "azure_primary_key", "azure_secondary_key",
+    "azure_app_secret", "azure_sas_token", "azure_conn_string", "ms_secret", "microsoft_key"
+  ],
+  "GitHub / GitLab / Bitbucket": [
+    "github_token", "github_api_key", "github_secret", "gitlab_token", "gitlab_private_token",
+    "bitbucket_token", "bitbucket_key", "gh_token", "gh_secret", "github_pat", "gh_pat",
+    "github_client_secret", "gitlab_ci_token", "github_actions_token", "github_credentials"
+  ],
+  "Payments / Banking": [
+    "stripe_secret_key", "stripe_publishable_key", "payment_token", "paypal_token",
+    "square_token", "braintree_token", "payment_key", "paypal_secret", "bank_token",
+    "plaid_token", "plaid_secret", "visa_key", "account_number", "routing_number",
+    "iban", "swift_code", "card_number", "credit_card", "payment_id", "checkout_token"
+  ],
+  "Messaging / Chat": [
+    "twilio_account_sid", "twilio_auth_token", "sms_api_key", "sms_token", "slack_token",
+    "discord_token", "discord_secret", "messaging_token", "chat_token", "telegram_token",
+    "whatsapp_token", "microsoft_teams_token", "zoom_jwt"
+  ],
+  "CI/CD & DevOps": [
+    "circleci_token", "travis_token", "jenkins_api_token", "ci_secret", "pipeline_token",
+    "buildkite_token", "drone_token", "github_actions_secret", "deployment_key", "webhook_secret",
+    "azure_devops_token", "jenkins_password", "jenkins_token", "circleci_api_key",
+    "travis_ci_token", "pipeline_key", "ci_cd_secret", "ci_cd_token", "build_token"
+  ],
+  "Cloudflare": [
+    "cloudflare_api_key", "cloudflare_api_token", "cf_api_key", "cf_token"
+  ],
+  "Observability / Monitoring": [
+    "datadog_api_key", "datadog_app_key", "newrelic_license_key", "sentry_dsn", "sentry_auth_token",
+    "logdna_key", "honeycomb_token", "grafana_token", "prometheus_token", "opsgenie_key",
+    "sumologic_key", "splunk_token", "rollbar_token", "segment_write_key", "heap_token",
+    "amplitude_key", "mixpanel_token"
+  ],
+  "AI / ML": [
+    "openai_api_key", "openai_key", "chatgpt_token", "huggingface_token", "cohere_key",
+    "replicate_key", "stability_key", "gemini_api_key", "gpt_key", "llama_key", "ollama_token",
+    "ai_access_token", "anthropic_key", "vertexai_token"
+  ],
+  "Email": [
+    "smtp_password", "smtp_user", "email_password", "email_token", "mailgun_api_key",
+    "sendgrid_api_key", "postmark_token", "zoho_mail_token", "email_api_key", "imap_pass"
+  ],
+  "SSH / SSL / Certs": [
+    "ssh_key", "rsa_key", "rsa_private_key", "id_rsa", "private.pem", "pem_key", "ssl_key",
+    "cert", "certificate", "tls_cert", "tls_key", "x509_cert", "crt", "pfx_password"
+  ],
+  "Mobile / Firebase / Expo": [
+    "expo_access_token", "firebase_auth_token", "mobile_secret_key", "mobile_key",
+    "android_key", "ios_key", "firebase_app_id"
+  ],
+  "API Tools / Platforms": [
+    "postman_api_key", "insomnia_token", "swagger_token", "rapidapi_key", "mashape_key",
+    "kong_api_key", "apigee_token", "stoplight_token"
+  ],
+  "Analytics / BI": [
+    "metabase_key", "snowflake_token", "looker_api_key", "powerbi_key", "datastudio_token"
+  ],
+  "Other SaaS / Tools": [
+    "airtable_api_key", "notion_token", "supabase_key", "prisma_secret", "keycloak_token",
+    "auth0_client_secret", "auth0_token", "linear_token", "asana_token", "jira_token",
+    "trello_key", "shopify_api_key", "zendesk_token", "salesforce_token", "algolia_secret",
+    "hashicorp_token", "vault_token", "crowdstrike_token", "malwarebytes_key", "fastly_token",
+    "cloudconvert_api_key", "elastic_api_key", "microsoft_graph_token", "okta_api_token",
+    "yandex_token", "spotify_token", "dropbox_token", "onedrive_token", "netlify_token",
+    "vercel_token", "cloudinary_key", "pubnub_key", "firebase_project_id", "intercom_token"
+  ]
+}

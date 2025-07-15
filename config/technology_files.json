@@ -1,0 +1,56 @@
+{
+  "docker_files": [
+    "Dockerfile", "docker-compose.yml", "docker-compose.yaml", "docker-compose.override.yml",
+    "docker-compose.dev.yml", "docker-compose.prod.yml", "docker-compose.test.yml",
+    "docker-compose.staging.yml", ".dockerignore", "docker.env", ".docker"
+  ],
+  "kubernetes_files": [
+    "k8s.yaml", "k8s.yml", "kubernetes.yml", "kubernetes.yaml", "kustomization.yaml",
+    "kustomization.yml", "helm/values.yaml", "helm/values.yml", "charts/secrets.yaml",
+    ".kube/config", "kubeconfig", "kubectl.yaml", "deployment.yaml", "service.yaml",
+    "ingress.yaml", "configmap.yaml", "secret.yaml"
+  ],
+  "ci_cd_files": [
+    ".circleci/config.yml", ".gitlab-ci.yml", ".github/workflows/*.yml", ".github/workflows/*.yaml",
+    "Jenkinsfile", "jenkins.yml", ".travis.yml", "buildkite.yml", ".drone.yml",
+    "azure-pipelines.yml", "bitbucket-pipelines.yml", ".buildkite/pipeline.yml",
+    "wercker.yml", "codefresh.yml", "concourse.yml"
+  ],
+  "cloud_config_files": [
+    ".aws/credentials", ".aws/config", "google_credentials.json", "gcloud.json",
+    "firebase.json", "serviceAccount.json", ".gcloud/credentials.json",
+    "azureProfile.json", "azure_creds.json", ".azure/credentials",
+    "ibm_credentials.json", "oracle_credentials.json", "alibaba_credentials.json"
+  ],
+  "infrastructure_files": [
+    "terraform.tfvars", ".terraform", "terraform.tf", "main.tf", "variables.tf",
+    "ansible.cfg", "inventory.ini", ".ansible", "playbook.yml", "vault.yml",
+    ".saltstack", "saltfile", ".chef", "chef.json", "Berksfile",
+    "pulumi.yaml", "pulumi.yml", "nomad.hcl", "consul.hcl"
+  ],
+  "package_manager_files": [
+    ".npmrc", ".yarnrc", ".pypirc", ".nuget.config", "composer.json", "composer.lock",
+    ".gemrc", "Gemfile", ".cargo/config", "cargo.toml", "pom.xml", "build.gradle",
+    "requirements.txt", "pipfile", "poetry.lock", "package-lock.json", "yarn.lock"
+  ],
+  "framework_config_files": [
+    ".env.node", ".env.express", ".env.server", ".env.backend", ".env.api",
+    "settings.py", "local_settings.py", "secrets.py", "instance/config.py",
+    ".env.django", ".env.flask", ".env.development.local", ".env.production.local",
+    ".env.test.local", ".env.vite", "vite.config.js", "vite.config.ts",
+    "next.config.js", "next.config.ts", ".env.laravel", ".env.local.php",
+    "config/database.php", "config/app.php", "wp-config.php", "wp-config-sample.php"
+  ],
+  "security_files": [
+    "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", "id_rsa.pub", "id_dsa.pub",
+    "id_ecdsa.pub", "id_ed25519.pub", ".ssh/config", ".ssh/known_hosts",
+    "keystore.jks", "key.pem", "cert.pem", "jwt.key", "jwt.key.pub",
+    ".htaccess", ".htpasswd", ".netrc", ".git-credentials", ".pgpass",
+    ".pg_service.conf", ".my.cnf"
+  ],
+  "monitoring_files": [
+    "datadog.yaml", "newrelic.yml", "sentry.properties", ".sentryclirc",
+    "grafana.ini", "prometheus.yml", "elasticsearch.yml", "kibana.yml",
+    "logstash.conf", "beats.yml", "jaeger.yaml"
+  ]
+}

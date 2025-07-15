@@ -25,9 +25,11 @@ src/credscan/detection/__init__.py
 src/credscan/detection/rules.py
 src/credscan/enhanced/__init__.py
 src/credscan/enhanced/config_integration.py
+src/credscan/enhanced/entropy_analyzer.py
 src/credscan/enhanced/pattern_library.py
 src/credscan/enhanced/pattern_structure.py
 src/credscan/enhanced/rule_engine_integration.py
+src/credscan/enhanced/technology_detector.py
 src/credscan/history/__init__.py
 src/credscan/history/commit_analyzer.py
 src/credscan/history/diff_processor.py
@@ -38,7 +40,11 @@ src/credscan/hooks/pre_commit.py
 src/credscan/output/__init__.py
 src/credscan/output/reporter.py
 src/credscan/parsers/__init__.py
+src/credscan/parsers/binary_parser.py
 src/credscan/parsers/code_parser.py
 src/credscan/parsers/json_parser.py
 src/credscan/parsers/yaml_parser.py
+src/credscan/web/__init__.py
+src/credscan/web/crawler.py
+src/credscan/web/scanner.py
 tests/test_integration.py

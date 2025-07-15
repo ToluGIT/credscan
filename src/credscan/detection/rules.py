@@ -242,12 +242,12 @@ class RuleLoader:
                 "severity": "high",
                 "value_patterns": [
                     {
-                        "name": "Postgres URI",
-                        "pattern": r"postgres(?:ql)?:\/\/.+:.+@.+:.+\/.+"
+                        "name": "Database URI",
+                        "pattern": r"(postgres(?:ql)?|mysql|redis|mongodb|sqlite):\/\/.+:.+@.+:.+(?:\/.*)?",
                     },
                     {
-                        "name": "URL With Basic Auth",
-                        "pattern": r"(ftp|sftp|http|https):\/\/[a-zA-Z0-9%-]+:[a-zA-Z0-9%-]+@([a-z0-9-]{0,61}\.[a-z]{2,})"
+                        "name": "URL With Basic Auth", 
+                        "pattern": r"(ftp|sftp|http|https|redis|mysql|mongodb):\/\/[a-zA-Z0-9%-_]+:[a-zA-Z0-9%-_]+@([a-z0-9.-]+(?::[0-9]+)?)"
                     },
                     {
                         "name": "JWT Token",
@@ -280,6 +280,35 @@ class RuleLoader:
                     r"postgres(?:ql)?:\/\/postgres:postgres@postgres:.+\/.+"
                 ],
                 "min_length": 16
+            },
+            {
+                "id": "credential_content_patterns",
+                "name": "Credential Content Detection",
+                "description": "Detects credential-like content in extracted text",
+                "severity": "medium",
+                "value_patterns": [
+                    {
+                        "name": "Password Content",
+                        "pattern": r"(?i)\w*password[_-]?\w*"
+                    },
+                    {
+                        "name": "Token Content", 
+                        "pattern": r"(?i)\w*token[_-]?\w*"
+                    },
+                    {
+                        "name": "API Key Content",
+                        "pattern": r"(?i)\w*api[_-]?key[_-]?\w*"
+                    },
+                    {
+                        "name": "Secret Content",
+                        "pattern": r"(?i)\w*secret[_-]?\w*"
+                    }
+                ],
+                "value_exclusion_patterns": [
+                    r"(?i)^(password|token|secret|api_key|apikey)$",
+                    r"(?i)^(test|example|demo|placeholder)$"
+                ],
+                "min_length": 8
             }
         ]
         

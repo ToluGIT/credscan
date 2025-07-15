@@ -7,6 +7,7 @@ from typing import Dict, List
 import json
 import os
 import yaml
+import re
 
 from .pattern_structure import PatternLibrary, PatternCategory, CredentialPattern
 
@@ -14,6 +15,41 @@ from .pattern_structure import PatternLibrary, PatternCategory, CredentialPatter
 def load_default_patterns() -> PatternLibrary:
     """Load the default credential patterns."""
     library = PatternLibrary()
+    
+    # First try to load from comprehensive patterns file
+    try:
+        config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
+        comprehensive_patterns_file = os.path.join(config_dir, 'comprehensive_patterns.json')
+        
+        if os.path.exists(comprehensive_patterns_file):
+            with open(comprehensive_patterns_file, 'r') as f:
+                comprehensive_data = json.load(f)
+                
+            # Convert comprehensive patterns to enhanced patterns
+            for category_name, pattern_list in comprehensive_data.items():
+                category = PatternCategory(
+                    name=category_name.lower().replace(' ', '_').replace('/', '_'),
+                    description=f"{category_name} credentials and tokens"
+                )
+                
+                for pattern_keyword in pattern_list:
+                    # Create regex patterns for each keyword
+                    category.add_pattern(CredentialPattern(
+                        name=f"{pattern_keyword.replace('_', ' ').title()}",
+                        pattern=rf"(?i){re.escape(pattern_keyword)}\s*[:=]\s*['\"]?([^\s'\"{{}}]+)['\"]?",
+                        description=f"Detects {pattern_keyword} credentials",
+                        severity="high" if any(x in pattern_keyword.lower() for x in ['secret', 'key', 'token', 'password']) else "medium",
+                        confidence=0.8
+                    ))
+                
+                library.add_category(category)
+                
+            # Return the comprehensive pattern library
+            return library
+            
+    except Exception as e:
+        print(f"Warning: Could not load comprehensive patterns: {e}")
+        # Fall back to hardcoded patterns below
     
     # AWS Patterns
     aws_category = PatternCategory(
