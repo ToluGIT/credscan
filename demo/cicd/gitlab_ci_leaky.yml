@@ -1,0 +1,24 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  # VULNERABILITY: Hardcoded secrets in global variables block
+  AWS_ACCESS_KEY_ID: "AKIAY2K7MNQ4RST6UVWX"
+  AWS_SECRET_ACCESS_KEY: "xK8mPn3R7vZ2qL5wJ9hE4yF1cB+tA0sD/NG6pQr"
+  DEPLOY_TOKEN: "glpat-Ry7mKx2pQn4vZ8wBfCgHj"
+  DATABASE_PASSWORD: "GitLabCIProd_Pass!"
+
+build:
+  stage: build
+  script:
+    - pip install -r requirements.txt
+    - python setup.py build
+
+deploy:
+  stage: deploy
+  script:
+    # VULNERABILITY: Secret echoed to log
+    - echo "Using key $AWS_ACCESS_KEY_ID"
+    - aws s3 sync dist/ s3://my-bucket/
+    - 'curl -H "Authorization: Bearer glpat-Ry7mKx2pQn4vZ8wBfCgHj" https://gitlab.internal/api/v4/projects'

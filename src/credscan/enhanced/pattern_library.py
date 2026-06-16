@@ -74,11 +74,11 @@ def load_default_patterns() -> PatternLibrary:
     ))
 
     aws_category.add_pattern(CredentialPattern(
-        name="AWS Secret Access Key (Simple)",
-        pattern=r"[A-Za-z0-9/+]{40}",
-        description="AWS Secret Access Keys (simple pattern)",
+        name="AWS Secret Access Key (Assignment)",
+        pattern=r"(?i)(?:aws[_\-\s]?(?:secret[_\-\s]?(?:access[_\-\s]?)?key|secret))\s*[=:]\s*['\"]?([A-Za-z0-9/+]{40})['\"]?",
+        description="AWS Secret Access Keys in assignment context",
         severity="medium",
-        examples=["wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"]
+        examples=["aws_secret_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"]
     ))
     
     aws_category.add_pattern(CredentialPattern(
@@ -348,7 +348,7 @@ def load_default_patterns() -> PatternLibrary:
     
     api_category.add_pattern(CredentialPattern(
         name="Generic API Key",
-        pattern=r"(?i)api[._-]?key[._-]?['\"]([a-zA-Z0-9]{32,45})['\"]",
+        pattern=r"(?i)api[._-]?key\s*[=:]\s*['\"]([a-zA-Z0-9]{32,45})['\"]",
         description="Generic API keys of standard length",
         severity="high"
     ))
@@ -576,14 +576,6 @@ def load_default_patterns() -> PatternLibrary:
         description="SENDGRID API keys",
         severity="high",
         confidence=0.9
-    ))
-
-    key_patterns.add_pattern(CredentialPattern(
-        name="Generic API Key",
-        pattern=r'(?i)api[_-]?key\s*[=:]\s*["\']([a-zA-Z0-9_\-]{16,})["\']',
-        description="Generic API keys with minimum length",
-        severity="high",
-        confidence=0.75
     ))
 
     key_patterns.add_pattern(CredentialPattern(

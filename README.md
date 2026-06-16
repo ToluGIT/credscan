@@ -1,410 +1,248 @@
 # CredScan
 
-CredScan is a credential and secret detection tool designed to identify sensitive information in codebases. It provides advanced pattern matching, context-aware analysis, and intelligent filtering to help security teams and developers detect credentials, API keys, tokens, and other secrets that may have been accidentally committed.
+[![CI](https://github.com/ToluGIT/credscan/actions/workflows/ci.yml/badge.svg)](https://github.com/ToluGIT/credscan/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Core Features
+A cloud-security credential scanner that goes beyond simple regex matching. CredScan layers pattern matching, Shannon entropy analysis, and context-aware scoring to detect hardcoded secrets across source code, Infrastructure as Code, CI/CD pipelines, Dockerfiles, git commit history, and web endpoints. Includes optional live AWS key validation.
 
-### Detection Capabilities
-- **Enhanced pattern matching**: Uses a library of patterns for detecting credentials across major cloud providers, services, and frameworks
-- **Context-aware analysis**: Evaluates the surrounding code context to reduce false positives and assess risk levels
-- **Technology-specific detection**: Applies specialized patterns based on detected technologies (Docker, Kubernetes, CI/CD platforms, etc.)
-- **Multi-factor confidence scoring**: Combines pattern matching, context analysis, entropy assessment, and technology context for accurate detection
-- **Entropy analysis**: Identifies high-entropy strings with configurable thresholds for different credential types
-- **Test credential identification**: Automatically identifies and filters example/test credentials to reduce noise
+---
 
-### File Support
-- **Multi-format scanning**: Supports JSON, YAML, code files (Python, JavaScript, Java, Go, etc.), configuration files, and more
-- **Binary file analysis**: Extracts and scans contents from archives (ZIP, TAR, JAR) and container images
-- **Web content scanning**: Direct scanning of web pages and APIs with optional crawling capabilities
-
-### Git Integration
-- **History scanning**: Examines commit history for credentials that may have been previously committed and removed
-- **Pre-commit hook integration**: Prevents accidental credential commits with configurable blocking or warning modes
-- **Baseline management**: Maintains exclusion lists to reduce false positives while tracking legitimate findings
-
-### Output and Reporting
-- **Multiple output formats**: Console (with colors), JSON, SARIF, Excel, CSV, HTML, and PDF reports
-- **Intelligent deduplication**: Groups similar detections and eliminates duplicate findings
-- **Risk-based prioritization**: Categorizes findings by severity and confidence levels
-- **Technology context reporting**: Shows detected technologies and associated risk levels
-
-## Installation
+## Install
 
 ```bash
-# Install from source
 git clone https://github.com/ToluGIT/credscan.git
 cd credscan
 pip install -e .
-
-# Install dependencies
-pip install -r requirements.txt
 ```
 
-## Quick Start
+Requires Python 3.9+. For AWS live validation, also install `boto3`.
+
+---
+
+## How detection works
+
+Most credential scanners apply a regex pattern and report a match. CredScan runs every finding through four layers before reporting it:
+
+1. **Pattern matching**: 15+ categories of regex rules covering cloud providers, payment processors, messaging services, database URIs, cryptographic material, and generic secret patterns
+2. **Shannon entropy analysis**: high-randomness strings are flagged even without a keyword match; thresholds are tuned per token type (base64 keys have different entropy profiles than hex secrets or JWTs)
+3. **Context analysis**: the surrounding lines are examined to assess whether the credential is in production config, test code, documentation, or an example file; confidence is adjusted accordingly
+4. **Confidence scoring**: a weighted score combining pattern strength, entropy, context, and technology signals produces a final confidence value; low-confidence findings are filtered before output
+
+The aim is high signal with minimal noise, so findings reported at default settings are worth investigating.
+
+---
+
+## Architecture
+
+![CredScan Architecture](credscan-architecture.png)
+
+---
+
+## What it scans
+
+**Source types**
+
+| Source | How |
+|--------|-----|
+| Files and directories | Recursive scan; parsers selected per file type |
+| Git commit history | Every commit diff is scanned; secrets deleted from code still exist in history |
+| Git staged files | Pre-commit hook mode blocks or warns before a commit lands |
+| Web endpoints | HTTP fetch with optional crawling |
+
+**File types with dedicated parsers**
+
+| Parser | Handles |
+|--------|---------|
+| IaCParser | Terraform `.tf`/`.tfvars`, CloudFormation YAML/JSON |
+| CICDParser | GitHub Actions workflows, GitLab CI, CircleCI, Jenkinsfiles |
+| DockerParser | Dockerfiles (`ENV`/`ARG` instructions), Docker image tarballs |
+| CodeParser | Python, JavaScript/TypeScript, Java, Go, Ruby, C/C++, C#, PHP, Kotlin, Swift |
+| JSONParser / YAMLParser | Config files, API specs, package files |
+| BinaryParser | ZIP, TAR, JAR, WAR, APK, IPA archives |
+| WebScanner | HTML pages, JavaScript bundles, API responses |
+
+---
+
+## What it detects
+
+**Credentials and tokens**
+
+- AWS Access Key IDs (`AKIA...`) and Secret Access Keys
+- GCP service account keys and API keys (`AIzaSy...`)
+- Azure connection strings and access keys
+- Stripe secret/publishable keys, PayPal Braintree, Square
+- GitHub, GitLab, and Bitbucket personal access tokens
+- Slack API tokens and webhook URLs
+- Twilio, SendGrid, Mailgun, Postmark API keys
+- OpenAI, Anthropic, and Hugging Face API keys
+- Database connection strings: PostgreSQL, MySQL, MongoDB, Redis
+- Generic password assignments, JWT signing secrets, OAuth client secrets
+
+**Cryptographic material**
+
+CredScan detects private keys and certificates committed directly to repositories. All are flagged at critical severity:
+
+- RSA, DSA, EC, and OPENSSH private keys (`-----BEGIN RSA PRIVATE KEY-----`)
+- PGP private key blocks (`-----BEGIN PGP PRIVATE KEY BLOCK-----`)
+- PKCS#12 and PFX certificate bundles (references to `.p12`, `.pfx`, `.pem`, `.key` files)
+- X.509 certificates (`-----BEGIN CERTIFICATE-----`)
+
+**Infrastructure as Code**
+
+- Hardcoded provider credentials in Terraform (`access_key`, `secret_key` in `provider "aws"` blocks)
+- Passwords in variable defaults and resource properties
+- CloudFormation parameters without `NoEcho: true`
+- Secrets hardcoded in CI/CD `env:` blocks instead of referenced from a secrets store
+
+---
+
+## Git history scanning
+
+A credential that was committed and later deleted still exists in git history. Every clone of the repository has it. CredScan walks every commit diff in the specified range, applying the full detection pipeline to each change set.
 
 ```bash
-# Basic scan of current directory
-credscan
-
-# Scan specific path with detection
-credscan --path /path/to/scan
-
-# Show detailed confidence analysis
-credscan --path /path/to/scan --show-confidence-details
-
-# Include test credentials in output
-credscan --path /path/to/scan --show-test-credentials
-```
-
-## Configuration Options
-
-### Detection Settings
-
-```bash
-# Enable/disable specific detection methods
-credscan --disable-enhanced-entropy          # Disable entropy analysis
-credscan --disable-context-analysis          # Disable context awareness
-credscan --disable-tech-detection            # Disable technology detection
-credscan --no-entropy                        # Disable basic entropy analysis
-
-# Adjust detection thresholds
-credscan --entropy-threshold 4.5             # Set entropy threshold
-credscan --min-confidence 0.7                # Set minimum confidence score
-credscan --context-confidence-threshold 0.2  # Set context filtering threshold
-credscan --min-length 8                      # Minimum credential length
-
-# Advanced confidence configuration
-credscan --show-confidence-details           # Show detailed confidence breakdown
-credscan --confidence-weights weights.json   # Custom confidence factor weights
-```
-
-### Output Control
-
-```bash
-# Control result processing
-credscan --disable-deduplication             # Show all individual findings
-credscan --summary-mode                      # Show concise summary
-credscan --group-by-severity                 # Group output by severity level
-
-# Output formats and directories
-credscan --output json,sarif,excel           # Multiple formats
-credscan --output-dir ./security-reports     # Custom output directory
-credscan --no-color                          # Disable colored output
-
-# File filtering
-credscan --exclude "node_modules/,*.log"     # Exclude patterns
-credscan --include "src/,config/"            # Include only these patterns
-```
-
-### Technology-Specific Scanning
-
-```bash
-# Focus on specific technologies
-credscan --tech-categories "Docker/Containers,Kubernetes,CI/CD Platforms"
-
-# Pattern configuration
-credscan --pattern-library ./custom-patterns.json
-credscan --pattern-categories "cloud,api,database"
-credscan --legacy-patterns                   # Use legacy detection patterns
-
-# Binary file handling
-credscan --disable-binary-parsing            # Skip binary file analysis
-credscan --binary-max-size 50                # Max binary file size in MB
-```
-
-## Advanced Usage
-
-### Git History Analysis
-
-Scan repository history to find credentials that were previously committed:
-
-```bash
-# Scan entire git history
+# Scan the entire history of the current branch
 credscan --scan-history
 
-# Scan recent commits
-credscan --scan-history --since "1 month ago" --until "1 week ago"
+# Scan the last 200 commits on main
+credscan --scan-history --branch main --max-commits 200
 
-# Scan specific branch with commit limit
-credscan --scan-history --branch develop --max-commits 100
+# Scan a specific time window
+credscan --scan-history --since "6 months ago" --until "1 week ago"
+
+# Scan history and export findings as SARIF
+credscan --scan-history -o sarif -d ./reports
 ```
 
-### Pre-commit Hook Setup
+Each finding includes the commit hash, author, timestamp, and the file and line where the secret appeared, giving you exactly what you need to assess exposure and determine when rotation is required.
 
-Prevent credential leakage by installing automated scanning:
+---
+
+## Quick start
 
 ```bash
-# Install pre-commit hook
+# Scan the current directory
+credscan
+
+# Scan a specific path, group output by severity
+credscan -p ./src --group-by-severity
+
+# Scan Terraform and CloudFormation files
+credscan -p ./infra -o json,sarif -d ./reports
+
+# Scan a web endpoint
+credscan --url https://example.com/static/app.js
+
+# Validate any AWS keys found (calls sts:GetCallerIdentity, read-only)
+credscan -p . --validate-aws
+
+# Tune confidence threshold to reduce false positives
+credscan -p . --min-confidence 0.6 --entropy-threshold 4.5
+```
+
+Exit codes: `0` = clean · `1` = credentials found · `2` = argument error
+
+---
+
+## Output formats
+
+Reports are generated with `--output` and saved to `--output-dir`:
+
+| Format | Use case |
+|--------|----------|
+| `console` | Default; colored, with confidence scores and context |
+| `json` | Audit log; full finding detail |
+| `sarif` | GitHub Code Scanning, VS Code, and other SARIF-compatible tools |
+| `html` | Shareable report; values are masked and HTML-escaped |
+| `excel` / `csv` | Spreadsheet-based triage |
+| `pdf` | Printable report |
+
+Secret values are masked in all human-readable output (`AKIA...MPLE`) and full values are only present in the JSON audit log. The HTML report is generated with proper escaping so content from scanned files cannot execute as code in the browser.
+
+---
+
+## Baseline management
+
+Once you have identified which findings are false positives, save them to a baseline file. Subsequent scans automatically suppress those findings.
+
+```bash
+# Run a scan and save all findings as the baseline
+credscan -p . --create-baseline .credscan-baseline.json
+
+# Future scans exclude anything in the baseline
+credscan -p . --baseline-file .credscan-baseline.json
+
+# Show what is being suppressed
+credscan -p . --baseline-file .credscan-baseline.json --show-excluded
+
+# Mark a specific finding as a false positive
+credscan -p . --baseline-file .credscan-baseline.json --mark-fp <finding-id>
+```
+
+---
+
+## Pre-commit hook
+
+Install CredScan as a git pre-commit hook to prevent secrets from being committed in the first place:
+
+```bash
 credscan --install-hook
-
-# Configure hook behavior (creates .credscan-hook.conf)
-# Options: "warning-only" or "block"
 ```
 
-The hook configuration file supports:
-```bash
-# Hook behavior: "warning-only" or "block"
-HOOK_CONFIG="warning-only"
+Configure blocking behaviour in `.credscan-hook.conf`:
 
-# Use project baseline file
-USE_BASELINE="true"
+```bash
+HOOK_CONFIG="block"          # block the commit if credentials are found
+# HOOK_CONFIG="warning-only" # warn but allow the commit through
 BASELINE_FILE=".credscan-baseline.json"
 ```
 
-### Baseline Management
+---
 
-Manage false positives and maintain scan accuracy:
+## CI/CD integration
 
-```bash
-# Create baseline from current scan
-credscan --create-baseline .credscan-baseline.json
-
-# Use baseline to filter known false positives
-credscan --baseline-file .credscan-baseline.json
-
-# Show excluded findings
-credscan --baseline-file .credscan-baseline.json --show-excluded
-
-# Add specific exclusions
-credscan --exclude-pattern "test_.*_key" --exclusion-reason "Test patterns"
-credscan --exclude-path "tests/" --exclusion-reason "Test directory"
-```
-
-### Web Scanning
-
-Scan web applications and APIs for exposed credentials:
-
-```bash
-# Scan single URL
-credscan --url https://example.com/api/config
-
-# Scan with crawling
-credscan --url https://example.com --crawl --crawl-depth 3
-
-# Configure request behavior
-credscan --url https://example.com --web-timeout 30 --crawl-delay 2.0
-```
-
-## Configuration File
-
-Create `config.yaml` for complex setups:
+CredScan exits with code `1` if any credentials are found, making it straightforward to fail a pipeline:
 
 ```yaml
-# Core scanning options
-scan_path: "."
-max_workers: 8
-verbose: true
-min_length: 8
+# GitHub Actions example
+- name: Scan for credentials
+  run: |
+    pip install credscan
+    credscan -p . --no-color -o sarif -d ./reports --min-confidence 0.5
+  
+- name: Upload SARIF to GitHub Security tab
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: ./reports/
+```
 
-# File filtering
+---
+
+## Configuration file
+
+For repeatable scans across environments, put settings in `config.yaml`:
+
+```yaml
+scan_path: "."
 exclude_patterns:
-  - "vendor/"
   - "node_modules/"
   - ".git/"
+  - "dist/"
   - "*.log"
-
-include_patterns:
-  - "src/"
-  - "config/"
-
-# Detection configuration
-min_length: 8
+min_confidence_threshold: 0.4
 entropy_threshold: 4.0
-enable_enhanced_entropy: true
-enable_context_analysis: true
-enable_technology_detection: true
-
-# Confidence scoring
-min_confidence_threshold: 0.3
-confidence_factor_weights:
-  pattern_match: 0.30
-  context: 0.25
-  entropy: 0.20
-  technology: 0.15
-  environment: 0.05
-  validation: 0.05
-
-# Output settings
-output_formats:
-  - "console"
-  - "json"
-  - "sarif"
+output_formats: ["console", "sarif"]
 output_directory: "./reports"
-disable_colors: false
-show_confidence_details: true
-enable_deduplication: true
-group_by_severity: false
-show_test_credentials: false
-
-# Baseline configuration
 baseline_file: ".credscan-baseline.json"
-show_excluded: false
 ```
 
-## Understanding Output
-
-CredScan provides detailed analysis of each finding:
-
-```
-=== Credential Scan Results ===
-
-Files found: 15
-Files scanned: 15
-Credentials found: 8
-
-Note: 3 test/example credentials filtered out (use --show-test-credentials to see them)
-
- File: src/config/database.py 
-
-[HIGH] Enhanced Pattern: AWS Access Key
-  Line: 12
-  Variable: AWS_ACCESS_KEY_ID
-  Value: AKIA1234567890ABCDEF
-  Detects aws_access_key_id credentials in production environment configuration [HIGH RISK]
-  Overall Confidence: 0.876
-  • Pattern matching confidence: 0.95 (weight: 0.30, contribution: 0.285)
-  • Context analysis confidence (security_config, high risk): 0.85 (weight: 0.25, contribution: 0.213)
-  • Technology confidence (Cloud Platforms): 0.80 (weight: 0.15, contribution: 0.120)
-  Context: security_config (high risk)
-
-[MEDIUM] Enhanced Entropy Analysis (GENERIC) (2 detections grouped)
-  Detection methods: Enhanced Entropy Analysis, Enhanced Pattern
-  Line: 15
-  Variable: database_password
-  Value: "p4$$w0rd_c0mpl3x_2024!"
-  High entropy string detected in database configuration context [MEDIUM RISK]
-  Overall Confidence: 0.742
-  Context: database_credentials (medium risk)
-
-Summary: 8 potential credential(s) found.
-High severity: 3
-Medium severity: 4
-Low severity: 1
-```
-
-### Key Output Elements
-
-- **Technology Context**: Shows detected technologies and associated risk levels
-- **Confidence Scoring**: Multi-factor confidence assessment with detailed breakdown
-- **Deduplication**: Groups similar detections to reduce noise
-- **Test Filtering**: Automatically identifies and optionally filters test/example credentials
-- **Risk Assessment**: Context-aware risk evaluation (None/Low/Medium/High)
-
-## Detection Categories
-
-CredScan recognizes credentials across multiple technology categories:
-
-### Cloud Platforms
-- AWS (Access Keys, Secret Keys, Session Tokens)
-- Google Cloud (Service Account Keys, API Keys)
-- Azure (Connection Strings, Access Keys)
-- Extended cloud providers (IBM, Oracle, Alibaba, etc.)
-
-### CI/CD Platforms
-- GitHub Actions, GitLab CI, Jenkins
-- CircleCI, Travis CI, Azure DevOps
-- BuildKite, Drone, and others
-
-### Container Technologies
-- Docker (Registry tokens, secrets)
-- Kubernetes (Service account tokens, secrets)
-- Helm charts and Kustomize configurations
-
-### Databases
-- PostgreSQL, MySQL, MongoDB
-- Redis, Elasticsearch, Cassandra
-- Modern databases (Supabase, PlanetScale, etc.)
-
-### API Services
-- Stripe, SendGrid, Twilio
-- Slack, Discord, Telegram
-- Social media and analytics platforms
-
-### Framework-Specific
-- Django, Flask, Laravel, Spring Boot
-- WordPress, Drupal configurations
-- JWT secrets and session keys
-
-## Best Practices
-
-### Regular Scanning
-- Integrate into CI/CD pipelines for continuous monitoring
-- Run periodic full repository scans including git history
-- Use baseline files to maintain scan accuracy over time
-
-### Configuration Management
-- Adjust confidence thresholds based on your environment
-- Customize technology categories for your tech stack
-- Configure appropriate exclusion patterns for test environments
-
-### False Positive Management
-- Use baseline files to exclude known false positives
-- Regularly review and update exclusion patterns
-- Leverage test credential identification features
-
-### Security Integration
-- Export findings in SARIF format for security tools
-- Set up alerting for high-confidence findings
-- Document remediation procedures for different credential types
-
-## Performance Considerations
-
-CredScan can also scan large codebases:
-
-- **Parallel processing**: Configurable worker threads for concurrent file scanning
-- **Smart filtering**: Early filtering of binary files and excluded patterns
-- **Efficient pattern matching**: Compiled regex patterns and intelligent caching
-- **Memory management**: Streaming processing for large files and archives
-- **Technology detection**: Context-aware pattern application to reduce false positives
-
-For large repositories:
 ```bash
-# Optimize for performance
-credscan --workers 12 --disable-binary-parsing --binary-max-size 50
+credscan --config config.yaml
 ```
 
-## Troubleshooting
+---
 
-### Common Issues
+## Security note
 
-**High false positive rate**: Adjust confidence thresholds and use baseline files
-```bash
-credscan --min-confidence 0.5 --context-confidence-threshold 0.3
-```
-
-**Missing detections**: Lower thresholds and enable all detection methods
-```bash
-credscan --min-confidence 0.1 --show-confidence-details --show-test-credentials
-```
-
-**Performance issues**: Reduce worker count and exclude large directories
-```bash
-credscan --workers 4 --exclude "node_modules/,vendor/,dist/"
-```
-
-**Context analysis errors**: Check file encoding and content format
-```bash
-credscan --disable-context-analysis --verbose
-```
-
-## Contributing
-
-Contributions are welcomed:
-
-- Additional credential patterns and detection rules
-- New technology category support
-- Performance optimizations
-- Output format enhancements
-- Documentation improvements
-
-## Security Notice
-
-CredScan helps identify potential credentials but cannot guarantee detection of all exposed secrets. It should be used as part of a comprehensive security strategy that includes:
-
-- Proper secret management systems (HashiCorp Vault, AWS Secrets Manager, etc.)
-- Regular security audits and penetration testing
-- Developer security training and awareness
-- Secure development lifecycle practices
-- Network security and access controls
-
-Always ensure validate findings and implement proper remediation procedures for any discovered credentials.
+CredScan is a detection aid. It will not catch every possible credential exposure and is not a substitute for proper secret management (AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager, etc.). Any credential it finds should be rotated immediately. Detection confirms exposure, not just risk.

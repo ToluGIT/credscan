@@ -1,0 +1,15 @@
+name: Deploy
+
+on: [push]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        env:
+          API_TOKEN: "ghp_realtoken1234567890abcdefghijk"
+          DATABASE_PASSWORD: "prodpassword123"
+        run: |
+          echo $API_TOKEN
+          curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.real.token" https://api.example.com

@@ -1,0 +1,5 @@
+{
+  "github_token": "ghp_abcdefghijklmnopqrstuvwxyz12345678",
+  "slack_webhook": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+  "db_password": "super_secret_db_pass_2024"
+}

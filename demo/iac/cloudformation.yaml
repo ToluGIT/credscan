@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Production RDS stack - DO NOT COMMIT WITH REAL CREDS
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+
+Resources:
+  # VULNERABILITY: Password hardcoded in resource property
+  ProductionDatabase:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: prod-db
+      DBInstanceClass: db.t3.medium
+      Engine: mysql
+      MasterUsername: admin
+      MasterUserPassword: "CloudForm@tionHardcoded_Pass!"
+      AllocatedStorage: 100
+
+  # VULNERABILITY: Parameter without NoEcho for sensitive value
+  APIKeyParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /app/api-key
+      Type: String
+      Value: "hardcoded-api-key-value-1234567890abcdef"
+
+Outputs:
+  DBEndpoint:
+    Value: !GetAtt ProductionDatabase.Endpoint.Address

@@ -1,0 +1,43 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+env:
+  # VULNERABILITY: Repo-level env with hardcoded secrets
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        # VULNERABILITY: Hardcoded credentials in step env block
+        env:
+          AWS_ACCESS_KEY_ID: "AKIAY2K7MNQ4RST6UVWX"
+          AWS_SECRET_ACCESS_KEY: "xK8mPn3R7vZ2qL5wJ9hE4yF1cB+tA0sD/NG6pQr"
+          DATABASE_PASSWORD: "Pr0dDeploy_P@ss_L3aked!"
+          STRIPE_SECRET_KEY: "sk_live_9mNk2pQr4tVwXzBfCgHjKlMn8RsTuVwXy12"
+        run: |
+          aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+          aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+
+      - name: Notify Slack
+        # VULNERABILITY: Token printed to log
+        env:
+          SLACK_TOKEN: "xoxb-756342198012-756342198012-KpRxMnVzQtWbFcGhJd4L"
+        run: |
+          echo "Deployment complete"
+          echo $SLACK_TOKEN
+          curl -X POST -H "Authorization: Bearer xoxb-756342198012-756342198012-KpRxMnVzQtWbFcGhJd4L" \
+            -d '{"text":"Deploy done"}' \
+            https://slack.com/api/chat.postMessage
+
+      - name: Docker push
+        # VULNERABILITY: Hardcoded registry password
+        run: |
+          docker login -u myuser -p "DockerHubPassword_Leaked!" registry.example.com
+          docker push registry.example.com/myapp:latest

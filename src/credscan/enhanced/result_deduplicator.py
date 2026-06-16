@@ -42,8 +42,13 @@ class ResultDeduplicator:
         
         # Test patterns to identify likely test credentials
         self.test_patterns = [
-            r'(?i)(test|dummy|example|sample|fake|mock|demo)',
+            r'(?i)(test|dummy|example|sample|fake|mock)',
             r'(?i)(placeholder|changeme|default)',
+            r'(?i)^replace.{0,10}(with|by|_)',   # REPLACE_WITH_ENV_VAR
+            r'(?i)^change.?me',                   # CHANGE_ME, changeme
+            r'(?i)^your[_\-]',                    # your_api_key_here
+            r'(?i)^<[^>]+>$',                     # <placeholder>
+            r'(?i)^os\.environ',                  # os.environ["KEY"] — not a value
             r'123+$',  # Ends with repeated numbers
             r'^(admin|root|user)123*$',
             r'(?i)^.*test.*$',
@@ -211,7 +216,7 @@ class ResultDeduplicator:
                     break
         
         # Check file path
-        test_path_indicators = ['test', 'example', 'sample', 'demo', 'mock']
+        test_path_indicators = ['test', 'example', 'sample', 'mock']
         for indicator in test_path_indicators:
             if indicator in path:
                 indicators.append(f'test_path: {indicator}')

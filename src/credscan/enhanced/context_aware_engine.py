@@ -62,14 +62,15 @@ class ContextAwareEngine:
         # Get base findings
         base_findings = self.base_engine.scan()
         logger.debug(f"Base engine found {len(base_findings)} findings")
-        
+
         # Enhance findings with context analysis
         enhanced_findings = []
-        files_to_scan = self.base_engine.find_files()
-        
-        # Create a map of file contents for context analysis
+
+        # Only read files that actually have findings — avoids a second full traversal
+        # and prevents loading the entire repo into memory at once.
+        file_paths_with_findings = {f.get('path') for f in base_findings if f.get('path')}
         file_contents = {}
-        for file_path in files_to_scan:
+        for file_path in file_paths_with_findings:
             try:
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     file_contents[file_path] = f.read()

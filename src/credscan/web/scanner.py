@@ -5,6 +5,7 @@ import re
 import requests
 import json
 import os
+import concurrent.futures
 from typing import Dict, List, Any, Optional, Set
 from urllib.parse import urljoin, urlparse
 import logging
@@ -190,25 +191,31 @@ class WebScanner:
     
     def scan_urls(self, urls: List[str]) -> List[Dict[str, Any]]:
         """
-        Scan multiple URLs for credentials.
-        
+        Scan multiple URLs for credentials in parallel.
+
         Args:
             urls: List of URLs to scan
-            
+
         Returns:
             List of all findings
         """
+        if not urls:
+            return []
+
+        max_workers = self.config.get('web_max_workers', min(10, len(urls)))
         all_results = []
-        
-        for url in urls:
-            try:
-                results = self.scan_url(url)
-                all_results.extend(results)
-            except KeyboardInterrupt:
-                logger.info("Scan interrupted by user")
-                break
-            except Exception as e:
-                logger.error(f"Error scanning {url}: {e}")
-                continue
-        
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_url = {executor.submit(self.scan_url, url): url for url in urls}
+                for future in concurrent.futures.as_completed(future_to_url):
+                    url = future_to_url[future]
+                    try:
+                        results = future.result()
+                        all_results.extend(results)
+                    except Exception as e:
+                        logger.error(f"Error scanning {url}: {e}")
+        except KeyboardInterrupt:
+            logger.info("Scan interrupted by user")
+
         return all_results

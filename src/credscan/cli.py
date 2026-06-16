@@ -17,6 +17,9 @@ from credscan.parsers.json_parser import JSONParser
 from credscan.parsers.yaml_parser import YAMLParser
 from credscan.parsers.code_parser import CodeParser
 from credscan.parsers.binary_parser import BinaryFileParser
+from credscan.parsers.iac_parser import IaCParser
+from credscan.parsers.cicd_parser import CICDParser
+from credscan.parsers.docker_parser import DockerParser
 from credscan.analyzers.entropy import EntropyAnalyzer
 from credscan.hooks import PreCommitScanner, install_hook
 from credscan.history.scanner import HistoryScanner
@@ -35,163 +38,142 @@ logging.basicConfig(
 
 logger = logging.getLogger('credscan')
 
+_EPILOG = """
+examples:
+  credscan                                      scan current directory
+  credscan -p ./src -o json,sarif -d ./reports  scan src/, write JSON + SARIF reports
+  credscan -p ./infra --group-by-severity       scan Terraform/CloudFormation, grouped output
+  credscan --scan-history --max-commits 100     scan last 100 git commits
+  credscan --url https://example.com/config.js  scan a web endpoint
+  credscan --validate-aws -p .                  scan + verify any AWS keys found are active
+
+exit codes:  0 = clean  |  1 = credentials found  |  2 = argument error
+"""
+
 def parse_args():
     """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(description='CredScan -  Credential Scanner')
-    
-    parser.add_argument('--path', '-p', type=str, default='.',
-                        help='Path to scan (default: current directory)')
-    
-    parser.add_argument('--config', '-c', type=str,
-                        help='Path to configuration file')
-    
-    parser.add_argument('--rules', '-r', type=str,
-                        help='Path to rules file')
-    
-    parser.add_argument('--output', '-o', type=str, default='console',
-                        help='Output format(s), comma-separated (options: console, json, sarif, excel, csv, html, pdf)')
-    
-    parser.add_argument('--output-dir', '-d', type=str, default='.',
-                        help='Output directory for reports')
-    
-    parser.add_argument('--verbose', '-v', action='store_true',
-                        help='Enable verbose output')
-    
-    parser.add_argument('--workers', '-w', type=int, default=os.cpu_count(),
-                        help='Number of worker threads')
-    
-    parser.add_argument('--no-entropy', action='store_true',
-                        help='Disable entropy-based detection')
-    
-    parser.add_argument('--min-length', type=int, default=6,
-                        help='Minimum length for potential credentials')
-    
-    parser.add_argument('--exclude', '-e', type=str,
-                        help='Exclude patterns (comma-separated)')
-    
-    parser.add_argument('--include', '-i', type=str,
-                        help='Include only patterns (comma-separated)')
-    
-    parser.add_argument('--no-color', action='store_true',
-                        help='Disable colored output')
-    
-    parser.add_argument('--enhanced-patterns', action='store_true', default=True,
-                        help='Enable enhanced pattern detection (enabled by default)')
-    parser.add_argument('--legacy-patterns', action='store_true',
-                        help='Use legacy pattern detection instead of enhanced patterns')
-    parser.add_argument('--pattern-library', type=str,
-                        help='Path to custom pattern library file')
-    parser.add_argument('--pattern-categories', type=str,
-                        help='Comma-separated list of pattern categories to enable')
-    parser.add_argument('--enable-tech-detection', action='store_true', default=True,
-                        help='Enable technology-aware credential detection (enabled by default)')
-    parser.add_argument('--disable-tech-detection', action='store_true',
-                        help='Disable technology-aware credential detection')
-    parser.add_argument('--tech-categories', type=str,
-                        help='Comma-separated list of technology categories to focus on')
-    parser.add_argument('--enable-enhanced-entropy', action='store_true', default=True,
-                        help='Enable enhanced entropy-based detection (enabled by default)')
-    parser.add_argument('--disable-enhanced-entropy', action='store_true',
-                        help='Disable enhanced entropy-based detection')
-    parser.add_argument('--entropy-threshold', type=float, default=4.0,
-                        help='Base entropy threshold for credential detection (default: 4.0)')
-    parser.add_argument('--enable-binary-parsing', action='store_true', default=True,
-                        help='Enable binary file and archive parsing (enabled by default)')
-    parser.add_argument('--disable-binary-parsing', action='store_true',
-                        help='Disable binary file and archive parsing')
-    
-    # Context-aware detection options
-    parser.add_argument('--enable-context-analysis', action='store_true', default=True,
-                        help='Enable context-aware detection (enabled by default)')
-    parser.add_argument('--disable-context-analysis', action='store_true',
-                        help='Disable context-aware detection')
-    parser.add_argument('--context-confidence-threshold', type=float, default=0.1,
-                        help='Minimum confidence threshold for context filtering (default: 0.1)')
-    parser.add_argument('--context-window-size', type=int, default=5,
-                        help='Number of lines to analyze around findings for context (default: 5)')
-    
-    # Confidence scoring options
-    parser.add_argument('--enable-confidence-scoring', action='store_true', default=True,
-                        help='Enable advanced confidence scoring (enabled by default)')
-    parser.add_argument('--disable-confidence-scoring', action='store_true',
-                        help='Disable advanced confidence scoring')
-    parser.add_argument('--min-confidence', type=float, default=0.3,
-                        help='Minimum confidence score to report findings (default: 0.3)')
-    parser.add_argument('--show-confidence-details', action='store_true',
-                        help='Show detailed confidence score breakdown in output')
-    parser.add_argument('--confidence-weights', type=str,
-                        help='JSON string or file path with custom confidence factor weights')
-    
-    # Result processing options
-    parser.add_argument('--enable-deduplication', action='store_true', default=True,
-                        help='Enable result deduplication and grouping (enabled by default)')
-    parser.add_argument('--disable-deduplication', action='store_true',
-                        help='Disable result deduplication (show all individual findings)')
-    parser.add_argument('--summary-mode', action='store_true',
-                        help='Show concise summary instead of detailed findings')
-    parser.add_argument('--show-test-credentials', action='store_true',
-                        help='Include identified test/example credentials in output')
-    parser.add_argument('--group-by-severity', action='store_true',
-                        help='Group output by severity level')
-    
-    parser.add_argument('--binary-max-size', type=int, default=100,
-                        help='Maximum size for binary file processing in MB (default: 100)')
-    
-    # Web scanning arguments
-    web_group = parser.add_argument_group('Web Scanning')
-    web_group.add_argument('--url', type=str,
-                          help='Target URL to scan for credentials')
-    web_group.add_argument('--crawl', action='store_true',
-                          help='Enable web crawling to discover additional files')
-    web_group.add_argument('--crawl-depth', type=int, default=2,
-                          help='Maximum crawling depth (default: 2)')
-    web_group.add_argument('--web-timeout', type=int, default=10,
-                          help='HTTP request timeout in seconds (default: 10)')
-    web_group.add_argument('--crawl-delay', type=float, default=1.0,
-                          help='Delay between web requests in seconds (default: 1.0)')
-    
-    baseline_group = parser.add_argument_group('Baseline Management')
-    baseline_group.add_argument('--baseline-file', type=str, 
-                              help='Path to baseline file for excluding false positives')
-    baseline_group.add_argument('--create-baseline', type=str, metavar='OUTPUT_FILE',
-                              help='Create baseline file from scan results')
-    baseline_group.add_argument('--update-baseline', action='store_true',
-                              help='Update existing baseline with new findings')
-    baseline_group.add_argument('--show-excluded', action='store_true',
-                              help='Include baseline-excluded findings in report (marked as excluded)')
-    baseline_group.add_argument('--mark-fp', type=str, metavar='FINDING_ID',
-                              help='Mark a finding as false positive and add to baseline')
-    baseline_group.add_argument('--exclude-pattern', type=str, 
-                              help='Add a regex pattern to baseline exclusions')
-    baseline_group.add_argument('--exclude-path', type=str,
-                              help='Add a path pattern to baseline exclusions')
-    baseline_group.add_argument('--exclusion-reason', type=str, default="Marked as false positive",
-                              help='Reason for adding an exclusion')
-    
-    hook_group = parser.add_argument_group('Git Hook Integration')
-    hook_group.add_argument('--install-hook', action='store_true',
-                          help='Install CredScan as a git pre-commit hook')
-    hook_group.add_argument('--hook-path', type=str,
-                          help='Custom path for git hooks directory')
-    hook_group.add_argument('--hook-scan', action='store_true',
-                          help='Run in pre-commit hook mode (scan staged files)')
-    hook_group.add_argument('--hook-config', type=str, choices=['warning-only', 'block'],
-                          help='Pre-commit hook behavior (warning-only or block)')
-    
+    parser = argparse.ArgumentParser(
+        description='CredScan — Cloud security credential scanner',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_EPILOG,
+    )
 
-    history_group = parser.add_argument_group('Git History Scanning')
-    history_group.add_argument('--scan-history', action='store_true',
-                              help='Scan git history for credentials')
-    history_group.add_argument('--since', type=str,
-                              help='Scan commits more recent than a specific date (e.g., "2 weeks ago")')
-    history_group.add_argument('--until', type=str,
-                              help='Scan commits older than a specific date')
-    history_group.add_argument('--max-commits', type=int,
-                              help='Maximum number of commits to scan')
-    history_group.add_argument('--branch', type=str, default='HEAD',
-                              help='Git branch to scan (default: HEAD)')
+    # ── Scan Target ───────────────────────────────────────────────────────────
+    target = parser.add_argument_group('Scan Target')
+    target.add_argument('--path', '-p', metavar='PATH', type=str, default='.',
+                        help='Directory or file to scan (default: .)')
+    target.add_argument('--exclude', '-e', metavar='PATTERNS', type=str,
+                        help='Comma-separated path patterns to skip  e.g. "node_modules/,*.log"')
+    target.add_argument('--include', '-i', metavar='PATTERNS', type=str,
+                        help='Only scan paths matching these comma-separated patterns')
+    target.add_argument('--url', metavar='URL', type=str,
+                        help='Web URL to scan for credentials')
+    target.add_argument('--crawl', action='store_true',
+                        help='Crawl the target URL to discover additional pages')
+    target.add_argument('--crawl-depth', metavar='N', type=int, default=2,
+                        help='Max crawl depth (default: 2)')
 
-    
+    # ── Output ────────────────────────────────────────────────────────────────
+    output = parser.add_argument_group('Output')
+    output.add_argument('--output', '-o', metavar='FORMAT', type=str, default='console',
+                        help='Report format(s): console, json, sarif, html, excel, csv, pdf  (default: console)')
+    output.add_argument('--output-dir', '-d', metavar='DIR', type=str, default='.',
+                        help='Directory for saved reports (default: .)')
+    output.add_argument('--group-by-severity', action='store_true',
+                        help='Group findings by severity (critical → high → medium → low)')
+    output.add_argument('--summary-mode', action='store_true',
+                        help='Print a one-line summary per file instead of full details')
+    output.add_argument('--show-confidence-details', action='store_true',
+                        help='Show per-factor confidence score breakdown')
+    output.add_argument('--show-test-credentials', action='store_true',
+                        help='Include auto-detected test/example credentials in output')
+    output.add_argument('--no-color', action='store_true',
+                        help='Disable ANSI colors (useful for CI logs)')
+    output.add_argument('--verbose', '-v', action='store_true',
+                        help='Enable debug-level logging')
+
+    # ── Detection ─────────────────────────────────────────────────────────────
+    detect = parser.add_argument_group('Detection')
+    detect.add_argument('--min-confidence', metavar='SCORE', type=float, default=0.3,
+                        help='Minimum confidence to report a finding, 0.0–1.0 (default: 0.3)')
+    detect.add_argument('--entropy-threshold', metavar='N', type=float, default=4.0,
+                        help='Shannon entropy threshold — raise to reduce false positives (default: 4.0)')
+    detect.add_argument('--min-length', metavar='N', type=int, default=6,
+                        help='Minimum credential value length (default: 6)')
+    detect.add_argument('--no-entropy', action='store_true',
+                        help='Disable all entropy-based detection')
+    detect.add_argument('--no-context-analysis', action='store_true',
+                        help='Disable context-aware false positive filtering')
+    detect.add_argument('--no-deduplication', action='store_true',
+                        help='Show every raw finding instead of grouped/deduped results')
+
+    # ── Cloud Security ────────────────────────────────────────────────────────
+    cloud = parser.add_argument_group('Cloud Security')
+    cloud.add_argument('--validate-aws', action='store_true',
+                       help='Verify discovered AWS keys via sts:GetCallerIdentity (read-only, opt-in)')
+
+    # ── Git Integration ───────────────────────────────────────────────────────
+    git = parser.add_argument_group('Git Integration')
+    git.add_argument('--scan-history', action='store_true',
+                     help='Scan git commit history for credentials')
+    git.add_argument('--max-commits', metavar='N', type=int,
+                     help='Limit history scan to the N most recent commits')
+    git.add_argument('--since', metavar='DATE',
+                     help='Only scan commits newer than DATE  e.g. "2 weeks ago"')
+    git.add_argument('--until', metavar='DATE',
+                     help='Only scan commits older than DATE')
+    git.add_argument('--branch', metavar='REF', type=str, default='HEAD',
+                     help='Branch or ref to scan (default: HEAD)')
+    git.add_argument('--install-hook', action='store_true',
+                     help='Install CredScan as a git pre-commit hook')
+    git.add_argument('--hook-config', type=str, choices=['warning-only', 'block'],
+                     help='Pre-commit hook mode: warn only, or block the commit')
+    git.add_argument('--hook-scan', action='store_true', help=argparse.SUPPRESS)
+    git.add_argument('--hook-path', type=str, help=argparse.SUPPRESS)
+
+    # ── Baseline (False Positive Management) ─────────────────────────────────
+    baseline = parser.add_argument_group('Baseline  (false positive management)')
+    baseline.add_argument('--baseline-file', metavar='FILE',
+                          help='Load exclusions from a baseline JSON file')
+    baseline.add_argument('--create-baseline', metavar='FILE',
+                          help='Write current findings to a new baseline file')
+    baseline.add_argument('--show-excluded', action='store_true',
+                          help='Show baseline-excluded findings (marked as excluded)')
+    baseline.add_argument('--mark-fp', metavar='ID',
+                          help='Mark a finding ID as false positive and add to baseline')
+    baseline.add_argument('--exclusion-reason', metavar='TEXT',
+                          default='Marked as false positive',
+                          help='Reason stored with a baseline exclusion')
+    baseline.add_argument('--exclude-pattern', metavar='REGEX', help=argparse.SUPPRESS)
+    baseline.add_argument('--exclude-path', metavar='GLOB', help=argparse.SUPPRESS)
+    baseline.add_argument('--update-baseline', action='store_true', help=argparse.SUPPRESS)
+
+    # ── Advanced (hidden from default --help) ─────────────────────────────────
+    adv = parser.add_argument_group(argparse.SUPPRESS)
+    adv.add_argument('--config', '-c', metavar='FILE', help=argparse.SUPPRESS)
+    adv.add_argument('--rules', '-r', metavar='FILE', help=argparse.SUPPRESS)
+    adv.add_argument('--workers', '-w', metavar='N', type=int, default=os.cpu_count(),
+                     help=argparse.SUPPRESS)
+    adv.add_argument('--legacy-patterns', action='store_true', help=argparse.SUPPRESS)
+    adv.add_argument('--pattern-library', metavar='FILE', help=argparse.SUPPRESS)
+    adv.add_argument('--pattern-categories', metavar='LIST', help=argparse.SUPPRESS)
+    adv.add_argument('--no-tech-detection', action='store_true', help=argparse.SUPPRESS)
+    adv.add_argument('--tech-categories', metavar='LIST', help=argparse.SUPPRESS)
+    adv.add_argument('--no-enhanced-entropy', action='store_true', help=argparse.SUPPRESS)
+    adv.add_argument('--no-binary-parsing', action='store_true', help=argparse.SUPPRESS)
+    adv.add_argument('--no-confidence-scoring', action='store_true', help=argparse.SUPPRESS)
+    adv.add_argument('--context-confidence-threshold', metavar='N', type=float,
+                     default=0.1, help=argparse.SUPPRESS)
+    adv.add_argument('--context-window-size', metavar='N', type=int,
+                     default=5, help=argparse.SUPPRESS)
+    adv.add_argument('--confidence-weights', metavar='JSON_OR_FILE', help=argparse.SUPPRESS)
+    adv.add_argument('--binary-max-size', metavar='MB', type=int,
+                     default=100, help=argparse.SUPPRESS)
+    adv.add_argument('--web-timeout', metavar='SEC', type=int,
+                     default=10, help=argparse.SUPPRESS)
+    adv.add_argument('--crawl-delay', metavar='SEC', type=float,
+                     default=1.0, help=argparse.SUPPRESS)
+
     return parser.parse_args()
 
 def load_config(config_path: str) -> Dict[str, Any]:
@@ -302,115 +284,69 @@ def build_config_from_args(args) -> Dict[str, Any]:
     
     return config
 
-def patch_cli_execution(args, config, engine):
-    """Update execution to use enhanced detection by default, unless legacy mode is requested."""
+def build_engine(args, config, base_engine):
+    """Build the scanning engine, defaulting to enhanced detection unless --legacy-patterns."""
     from credscan.enhanced.config_integration import EnhancedConfig
-    
-    # Use legacy patterns only if explicitly requested
-    if hasattr(args, 'legacy_patterns') and args.legacy_patterns:
+
+    if args.legacy_patterns:
         logger.info("Using legacy pattern detection")
-        return engine
-    
-    # Default to enhanced pattern detection
+        return base_engine
+
     logger.info("Using enhanced pattern detection")
-    
-    # Create enhanced config from existing config
     enhanced_config_data = config.copy()
-    
-    if hasattr(args, 'pattern_library') and args.pattern_library:
+
+    if args.pattern_library:
         enhanced_config_data['pattern_library_path'] = args.pattern_library
-        
-    if hasattr(args, 'pattern_categories') and args.pattern_categories:
+    if args.pattern_categories:
         enhanced_config_data['enabled_pattern_categories'] = args.pattern_categories.split(',')
-        
-    # Technology detection settings
-    if hasattr(args, 'disable_tech_detection') and args.disable_tech_detection:
-        enhanced_config_data['enable_technology_detection'] = False
-    elif hasattr(args, 'enable_tech_detection'):
-        enhanced_config_data['enable_technology_detection'] = args.enable_tech_detection
-        
-    if hasattr(args, 'tech_categories') and args.tech_categories:
+
+    enhanced_config_data['enable_technology_detection'] = not args.no_tech_detection
+    if args.tech_categories:
         enhanced_config_data['technology_categories'] = args.tech_categories.split(',')
-        
-    # Enhanced entropy settings
-    if hasattr(args, 'disable_enhanced_entropy') and args.disable_enhanced_entropy:
-        enhanced_config_data['enable_enhanced_entropy'] = False
-    elif hasattr(args, 'enable_enhanced_entropy'):
-        enhanced_config_data['enable_enhanced_entropy'] = args.enable_enhanced_entropy
-        
-    if hasattr(args, 'entropy_threshold') and args.entropy_threshold:
+
+    enhanced_config_data['enable_enhanced_entropy'] = not args.no_enhanced_entropy
+    if args.entropy_threshold:
         enhanced_config_data['entropy_thresholds'] = {
             'generic': args.entropy_threshold,
             'base64': args.entropy_threshold + 0.5,
             'hex': args.entropy_threshold - 0.2,
             'jwt': args.entropy_threshold,
-            'api_key': args.entropy_threshold + 0.2
+            'api_key': args.entropy_threshold + 0.2,
         }
-    
-    # Context-aware detection settings
-    if hasattr(args, 'disable_context_analysis') and args.disable_context_analysis:
-        enhanced_config_data['enable_context_analysis'] = False
-    elif hasattr(args, 'enable_context_analysis'):
-        enhanced_config_data['enable_context_analysis'] = args.enable_context_analysis
-        
-    if hasattr(args, 'context_confidence_threshold') and args.context_confidence_threshold is not None:
-        enhanced_config_data['context_confidence_threshold'] = args.context_confidence_threshold
-        
-    if hasattr(args, 'context_window_size') and args.context_window_size:
-        enhanced_config_data['context_window_size'] = args.context_window_size
-    
-    # Confidence scoring settings
-    if hasattr(args, 'disable_confidence_scoring') and args.disable_confidence_scoring:
-        enhanced_config_data['enable_confidence_scoring'] = False
-    elif hasattr(args, 'enable_confidence_scoring'):
-        enhanced_config_data['enable_confidence_scoring'] = args.enable_confidence_scoring
-        
-    if hasattr(args, 'min_confidence') and args.min_confidence is not None:
-        enhanced_config_data['min_confidence_threshold'] = args.min_confidence
-        
-    if hasattr(args, 'show_confidence_details') and args.show_confidence_details:
+
+    enhanced_config_data['enable_context_analysis'] = not args.no_context_analysis
+    enhanced_config_data['context_confidence_threshold'] = args.context_confidence_threshold
+    enhanced_config_data['context_window_size'] = args.context_window_size
+
+    enhanced_config_data['enable_confidence_scoring'] = not args.no_confidence_scoring
+    enhanced_config_data['min_confidence_threshold'] = args.min_confidence
+    if args.show_confidence_details:
         enhanced_config_data['show_confidence_details'] = True
-        
-    if hasattr(args, 'confidence_weights') and args.confidence_weights:
+    if args.confidence_weights:
         import json
         try:
-            # Try to parse as JSON string first
             if args.confidence_weights.startswith('{'):
-                weights = json.loads(args.confidence_weights)
+                enhanced_config_data['confidence_factor_weights'] = json.loads(args.confidence_weights)
             else:
-                # Try to load from file
                 with open(args.confidence_weights, 'r') as f:
-                    weights = json.load(f)
-            enhanced_config_data['confidence_factor_weights'] = weights
+                    enhanced_config_data['confidence_factor_weights'] = json.load(f)
         except (json.JSONDecodeError, FileNotFoundError) as e:
             logger.warning(f"Failed to load confidence weights: {e}")
-    
-    # Result processing settings
-    if hasattr(args, 'disable_deduplication') and args.disable_deduplication:
-        enhanced_config_data['enable_deduplication'] = False
-    elif hasattr(args, 'enable_deduplication'):
-        enhanced_config_data['enable_deduplication'] = args.enable_deduplication
-        
-    if hasattr(args, 'summary_mode') and args.summary_mode:
-        enhanced_config_data['summary_mode'] = True
-        
-    if hasattr(args, 'show_test_credentials') and args.show_test_credentials:
-        enhanced_config_data['show_test_credentials'] = True
-        
-    if hasattr(args, 'group_by_severity') and args.group_by_severity:
-        enhanced_config_data['group_by_severity'] = True
-    
-    # Create enhanced config and engine
+
+    enhanced_config_data['enable_deduplication'] = not args.no_deduplication
+    enhanced_config_data['summary_mode'] = args.summary_mode
+    enhanced_config_data['show_test_credentials'] = args.show_test_credentials
+    enhanced_config_data['group_by_severity'] = args.group_by_severity
+
     enhanced_config = EnhancedConfig(enhanced_config_data)
-    base_engine = enhanced_config.create_enhanced_engine()
-    
-    # Wrap with context-aware engine if enabled
-    if enhanced_config_data.get('enable_context_analysis', True):
+    engine = enhanced_config.create_enhanced_engine()
+
+    if not args.no_context_analysis:
         from credscan.enhanced.context_aware_engine import ContextAwareEngine
         logger.info("Enabling context-aware detection")
-        return ContextAwareEngine(base_engine, enhanced_config_data)
-    
-    return base_engine
+        return ContextAwareEngine(engine, enhanced_config_data)
+
+    return engine
 
 def main():
     """Main entry point for the command-line application."""
@@ -541,13 +477,17 @@ BASELINE_FILE=".credscan-baseline.json"
     # Initialize the scanning engine
     base_engine = ScanEngine(config)
     
-    # Register parsers with base engine - Binary parser first to handle archives before CodeParser treats them as text
-    if not (hasattr(args, 'disable_binary_parsing') and args.disable_binary_parsing):
+    # Binary parser first — handles archives before CodeParser treats them as text
+    if not args.no_binary_parsing:
         binary_config = config.copy()
-        if hasattr(args, 'binary_max_size'):
-            binary_config['max_extraction_size'] = args.binary_max_size * 1024 * 1024  # Convert MB to bytes
+        binary_config['max_extraction_size'] = args.binary_max_size * 1024 * 1024
         base_engine.register_parser(BinaryFileParser(binary_config))
     
+    # Specialised parsers registered before generic ones so they claim their
+    # file types before CodeParser or YAMLParser.
+    base_engine.register_parser(DockerParser(config))
+    base_engine.register_parser(IaCParser(config))
+    base_engine.register_parser(CICDParser(config))
     base_engine.register_parser(JSONParser(config))
     base_engine.register_parser(YAMLParser(config))
     base_engine.register_parser(CodeParser(config))
@@ -556,31 +496,23 @@ BASELINE_FILE=".credscan-baseline.json"
     if config.get('enable_entropy', True):
         base_engine.register_analyzer(EntropyAnalyzer(config))
     
-    # Apply enhanced pattern detection if enabled
-    engine = patch_cli_execution(args, config, base_engine)
-    
-    # If enhanced pattern detection is enabled, we need to make sure parsers are available
-    if not (hasattr(args, 'legacy_patterns') and args.legacy_patterns):
-        # Copy parsers from base engine to enhanced engine if they're different objects
-        if engine != base_engine and hasattr(base_engine, 'parsers'):
-            for parser in base_engine.parsers:
-                if hasattr(engine, 'register_parser'):
-                    engine.register_parser(parser)
-                elif hasattr(engine, 'base_engine') and hasattr(engine.base_engine, 'register_parser'):
-                    engine.base_engine.register_parser(parser)
-    
+    engine = build_engine(args, config, base_engine)
+
     # Load detection rules (only for legacy engine)
-    if hasattr(args, 'legacy_patterns') and args.legacy_patterns:
-        if args.rules:
-            rules = RuleLoader.load_rules_from_file(args.rules)
-        else:
-            rules = RuleLoader.load_default_rules()
-        
+    if args.legacy_patterns:
+        rules = RuleLoader.load_rules_from_file(args.rules) if args.rules else RuleLoader.load_default_rules()
         engine.register_rules(rules)
     
     # Run the scan
     logger.info(f"Starting credential scan on {config['scan_path']}")
     findings = engine.scan()
+
+    # Optionally validate discovered AWS credentials (opt-in only)
+    if getattr(args, 'validate_aws', False) and findings:
+        logger.info("Validating discovered AWS credentials (sts:GetCallerIdentity)...")
+        from credscan.validators import AWSCredentialValidator
+        validator = AWSCredentialValidator(config)
+        findings = validator.enrich_findings(findings)
 
     # Handle baseline operations
     if args.create_baseline:

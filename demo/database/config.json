@@ -1,0 +1,17 @@
+{
+  "database": {
+    "host": "prod.db.internal",
+    "port": 5432,
+    "name": "production",
+    "username": "prod_user",
+    "password": "Pr0duct10n_DB_S3cret!"
+  },
+  "redis": {
+    "url": "redis://:Redis_Prod_Pass123@redis.internal:6379"
+  },
+  "github_token": "ghp_Ry7mKx2pQn4vZ8wBfCgHjLnMt9RsTuVwXy3",
+  "slack_token": "xoxb-756342198012-756342198012-KpRxMnVzQtWbFcGhJd4L",
+  "slack_webhook": "https://hooks.slack.com/services/T04BK3N9X/B04BK3N9Y/KpRxMnVzQtWbFcGhJd4L9R",
+  "openai_api_key": "sk-Ry7mKx2pQn4vZ8wBfCgHjLnMt9RsTuVwXy3Zp6Q",
+  "anthropic_api_key": "sk-ant-api03-Ry7mKx2pQn4vZ8wBfCgHjLnMt9Rs-AAAA"
+}

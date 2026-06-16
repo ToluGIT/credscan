@@ -1,0 +1,10 @@
+aws:
+  access_key_id: "AKIAY2K7MNQ4RST6UVWX"
+  secret_access_key: "xK8mPn3R7vZ2qL5wJ9hE4yF1cB+tA0sD/NG6pQr"
+  region: us-east-1
+
+google_api_key: "AIzaSyBxK8mPn3R7vZ2qL5wJ9hE4yF1cBtA0sDNb"
+
+stripe:
+  secret_key: "sk_live_9mNk2pQr4tVwXzBfCgHjKlMn8RsTuVwXy12"
+  publishable_key: "pk_live_9mNk2pQr4tVwXzBfCgHjKlMn8RsTuVwXy12"

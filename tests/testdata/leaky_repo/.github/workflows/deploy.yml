@@ -1,0 +1,18 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy
+        env:
+          API_SECRET: "hardcoded_deploy_secret_abc123xyz"
+          DATABASE_PASSWORD: "prod_db_pass_leaked"
+        run: |
+          echo $API_SECRET
+          ./deploy.sh

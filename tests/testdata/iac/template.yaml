@@ -1,0 +1,14 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Leaky CloudFormation template
+
+Parameters:
+  DBPassword:
+    Type: String
+    Description: Database password
+
+Resources:
+  MyDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      MasterUserPassword: "HardcodedPass123!"
+      DBInstanceClass: db.t3.micro

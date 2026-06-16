@@ -1,6 +1,7 @@
 """
 Reporting system for credential detection results.
 """
+import html
 import json
 import os
 import datetime
@@ -306,6 +307,13 @@ class Reporter:
         else:
             return 3.0
     
+    @staticmethod
+    def _mask_value(value: str) -> str:
+        """Mask a secret value for display, showing only first/last 4 chars."""
+        if not value or len(value) <= 8:
+            return '****'
+        return f"{value[:4]}...{value[-4:]}"
+
     def report_excel(self, findings: List[Dict[str, Any]], statistics: Dict[str, Any]):
         """
         Output findings in Excel format to a file.
@@ -327,12 +335,12 @@ class Reporter:
                     "Severity": finding.get('severity', 'medium'),
                     "Rule": finding.get('rule_name', ''),
                     "Variable": finding.get('variable', ''),
-                    "Value": finding.get('value', ''),
+                    "Value": self._mask_value(finding.get('value', '')),
                     "File": finding.get('path', ''),
                     "Line": finding.get('line', 0),
                     "Description": finding.get('description', '')
                 })
-            
+
             if not data:
                 logger.info("No data to export to Excel")
                 return
@@ -382,12 +390,12 @@ class Reporter:
                     "Severity": finding.get('severity', 'medium'),
                     "Rule": finding.get('rule_name', ''),
                     "Variable": finding.get('variable', ''),
-                    "Value": finding.get('value', ''),
+                    "Value": self._mask_value(finding.get('value', '')),
                     "File": finding.get('path', ''),
                     "Line": finding.get('line', 0),
                     "Description": finding.get('description', '')
                 })
-            
+
             if not data:
                 logger.info("No data to export to CSV")
                 return
@@ -424,19 +432,20 @@ class Reporter:
             for finding in findings:
                 severity_color = {
                     'high': '#ff4444',
-                    'medium': '#ffaa00', 
+                    'medium': '#ffaa00',
                     'low': '#44aa44'
                 }.get(finding.get('severity', 'medium'), '#888888')
-                
+                severity_label = html.escape(finding.get('severity', 'medium').upper())
+
                 data.append({
-                    "Category": finding.get('category', 'Unknown'),
-                    "Severity": f'<span style="color: {severity_color}; font-weight: bold">{finding.get("severity", "medium").upper()}</span>',
-                    "Rule": finding.get('rule_name', ''),
-                    "Variable": finding.get('variable', ''),
-                    "Value": finding.get('value', ''),
-                    "File": finding.get('path', ''),
+                    "Category": html.escape(finding.get('category', 'Unknown')),
+                    "Severity": f'<span style="color: {severity_color}; font-weight: bold">{severity_label}</span>',
+                    "Rule": html.escape(finding.get('rule_name', '')),
+                    "Variable": html.escape(finding.get('variable', '')),
+                    "Value": html.escape(self._mask_value(finding.get('value', ''))),
+                    "File": html.escape(finding.get('path', '')),
                     "Line": finding.get('line', 0),
-                    "Description": finding.get('description', '')
+                    "Description": html.escape(finding.get('description', ''))
                 })
             
             # Create HTML content
@@ -462,7 +471,7 @@ class Reporter:
             """
             
             for key, value in statistics.items():
-                html_content += f"<p><strong>{key.replace('_', ' ').title()}:</strong> {value}</p>"
+                html_content += f"<p><strong>{html.escape(key.replace('_', ' ').title())}:</strong> {html.escape(str(value))}</p>"
             
             html_content += f"""
                     <p><strong>Report Generated:</strong> {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
@@ -484,8 +493,9 @@ class Reporter:
                     
                     for row in data:
                         html_content += "<tr>"
-                        for value in row.values():
-                            html_content += f"<td>{value}</td>"
+                        for cell_value in row.values():
+                            # Values are already escaped above; int Line passes through safely
+                            html_content += f"<td>{cell_value}</td>"
                         html_content += "</tr>"
                     html_content += "</table>"
             else:
@@ -689,12 +699,7 @@ class Reporter:
                 print(f"  Variable: {variable}")
                 
             if value:
-                # Truncate long values
-                if len(value) > 100:
-                    display_value = value[:97] + "..."
-                else:
-                    display_value = value
-                print(f"  Value: {c['yellow']}{display_value}{c['reset']}")
+                print(f"  Value: {c['yellow']}{self._mask_value(value)}{c['reset']}")
                 
             print(f"  {description}")
             
