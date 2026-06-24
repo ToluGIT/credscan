@@ -26,16 +26,23 @@ PYTHONPATH=src python benchmarks/throughput.py --files 2000 --json
 
 Measured on the development machine (Apple Silicon, Python 3.12), CredScan scans
 roughly **400 files/second** through the full pipeline (pattern matching +
-entropy + context + confidence). CredScan is pure Python and does not try to
-match Go scanners (gitleaks, TruffleHog) on raw speed; it competes on signal
-quality and source coverage. The number here exists to catch regressions and to
-set honest expectations.
+entropy + context + confidence) on this corpus. CredScan is pure Python and does
+not try to match Go scanners (gitleaks, TruffleHog) on raw speed; it competes on
+signal quality and source coverage. The number here exists to catch regressions
+and to set honest expectations.
+
+Caveat on the number: the synthetic corpus is small source files (~30 lines
+each). Throughput is per-file dominated, so a repository with large or minified
+files (bundled JS, generated JSON) will scan slower per megabyte. Treat 400
+files/s as an order-of-magnitude figure for typical source, not a guarantee for
+any file mix.
 
 Each file is read from disk once per scan via a small bounded LRU cache
 (`credscan/file_cache.py`); on this corpus that collapses the parser, pattern,
-and entropy reads into one and gives a modest (~few percent) speedup, with the
-main benefit being bounded memory and no repeated IO. The dominant cost is regex
-and entropy CPU work, not IO.
+and entropy reads into one. Measured effect is about a 4% wall-clock improvement
+(406 vs 389 files/s, median of 3 runs) -- modest, because the dominant cost is
+regex and entropy CPU work, not IO. The larger benefits are bounded memory and
+no repeated reads.
 
 ### Performance targets
 

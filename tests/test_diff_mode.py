@@ -52,6 +52,17 @@ class TestChangedFiles:
         d.mkdir()
         assert changed_files(scan_path=str(d)) == []
 
+    def test_unicode_and_spaced_filenames(self, git_repo):
+        # git quotes non-ASCII/spaced paths in default output; the resolver
+        # must still find them or a scanner silently misses those files.
+        (git_repo / "文档.py").write_text('SECRET = "leakedvalue123456"\n')
+        (git_repo / "my config.py").write_text('TOKEN = "anotherleak123456"\n')
+        _git(["add", "--", "文档.py", "my config.py"], str(git_repo))
+        files = changed_files(scan_path=str(git_repo))
+        names = [os.path.basename(f) for f in files]
+        assert "文档.py" in names
+        assert "my config.py" in names
+
 
 class TestExplicitFilesScan:
     def test_engine_scans_only_explicit_files(self, git_repo):
