@@ -177,6 +177,31 @@ Exit codes: `0` = clean · `1` = credentials found · `2` = argument error
 
 ---
 
+## Web GUI
+
+A terminal-styled web interface drives scans and explores findings for anyone
+who would rather not use the CLI. It runs the same engine; the API masks every
+value, so no raw secret leaves the server.
+
+```bash
+pip install -e ".[gui]"
+credscan-gui            # serves http://127.0.0.1:8000
+```
+
+![CredScan GUI dashboard](docs/screenshots/credscan-gui-dashboard.png)
+
+Launch a scan, watch detector output stream in live, then filter the findings
+report by severity, expand a finding for its context and remediation, and
+suppress false positives into a baseline.
+
+![CredScan GUI live scan](docs/screenshots/credscan-gui-live.png)
+
+The backend is a thin FastAPI layer (`credscan/gui/server.py`) wrapping the
+existing engine; the frontend is a single static page built to the terminal
+design system. Findings are returned masked (`AKIA...MPLE`), never raw.
+
+---
+
 ## Output formats
 
 Reports are generated with `--output` and saved to `--output-dir`:

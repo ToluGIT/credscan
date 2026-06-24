@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CredScan</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app" class="wrap">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div>
+      <span class="title">CREDSCAN(1)</span>
+      <span class="sub"> · CLOUD SECURITY · CREDENTIAL SCANNER</span>
+    </div>
+    <div>
+      <span class="online">{{ engineStatus }}</span>
+      <span class="ver"> · v{{ version }}</span>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <div class="nav">
+    <button v-for="s in screens" :key="s.id"
+            :class="{active: screen === s.id}" @click="screen = s.id">{{ s.label }}</button>
+  </div>
+
+  <!-- ── Dashboard ───────────────────────────────────────────── -->
+  <div v-show="screen === 'dashboard'" class="fade-up">
+    <div class="prompt">
+      <span class="host">devops@credscan</span> <span class="dollar">$</span>
+      <span class="cmd"> credscan status</span><span class="cursor"></span>
+    </div>
+    <div class="comment">// posture overview · scan a path to populate findings</div>
+
+    <div class="statusline">
+      <span class="dot">{{ statusWord }}</span>
+      <span class="sub">{{ statusContext }}</span>
+      <span class="flags">[strict] [validate-live] [git-history]</span>
+    </div>
+
+    <div class="panel">
+      <div class="cli-row">
+        <span class="dollar">$</span>
+        <input v-model="scanPath" placeholder="path to scan  e.g. ." @keyup.enter="runScan">
+        <button class="btn" :disabled="busy" @click="runScan">RUN ▶</button>
+      </div>
+      <div class="qa-grid">
+        <button v-for="qa in quickActions" :key="qa.label" @click="quick(qa)">
+          <span class="glyph">{{ qa.glyph }}</span>{{ qa.label }}
+        </button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="sec-head">
+        <span class="name">severity-summary</span>
+        <span class="meta">[{{ totalFindings }} open] [{{ baseline.length }} suppressed]</span>
+      </div>
+      <div class="comment">// open findings by severity — click to filter the report</div>
+      <div class="sev-grid">
+        <div class="sev-row" v-for="sv in severityRows" :key="sv.key" @click="filterBy(sv.key)" style="cursor:pointer">
+          <span class="sev-label" :class="'sev-'+sv.key">{{ sv.label }}</span>
+          <span class="sev-count" :class="'sev-'+sv.key">{{ sv.count }}</span>
+          <span class="bar-track"><span class="bar-fill" :style="{width: sv.pct+'%', background: sv.color}"></span></span>
+          <span class="delta">{{ sv.count ? 'open' : '—' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="sec-head"><span class="name">detector-coverage</span><span class="meta">[8 detectors]</span></div>
+      <div class="comment">// source types this scan understands</div>
+      <div class="cov-row" v-for="c in coverage" :key="c.label">
+        <span class="k" style="color:var(--text-muted)">{{ c.label }}</span>
+        <span class="cov-bar" :style="{color: c.pct >= 90 ? 'var(--accent)' : 'var(--warn)'}">{{ bar(c.pct) }}</span>
+        <span class="v">{{ c.pct }}%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Scan Config ─────────────────────────────────────────── -->
+  <div v-show="screen === 'config'" class="fade-up">
+    <div class="prompt">
+      <span class="host">devops@credscan</span> <span class="dollar">$</span>
+      <span class="cmd"> credscan scan --configure</span><span class="cursor"></span>
+    </div>
+    <div class="comment">// build a scan profile · assembled command shown below</div>
+
+    <div class="panel">
+      <div class="comment">// PATH</div>
+      <div class="cli-row">
+        <span class="dollar">▸</span>
+        <input v-model="scanPath" placeholder="directory or file to scan">
+      </div>
+
+      <div class="sec-head" style="margin-top:16px"><span class="name">thresholds</span></div>
+      <div class="comment">// tune sensitivity vs. noise</div>
+      <div class="slider-wrap">
+        <div class="slider-head"><span class="lbl">--min-confidence</span><span class="val">{{ minConfidence }}</span></div>
+        <input type="range" min="0" max="100" v-model.number="minConfidencePct">
+        <div class="slider-ends"><span>0 noisy</span><span>100 strict</span></div>
+      </div>
+
+      <div class="sec-head" style="margin-top:16px"><span class="name">flags & detectors</span></div>
+      <div class="comment">// toggle engines</div>
+      <div class="brackets">
+        <span class="opt" :class="{on: !opts.no_context_analysis}" @click="opts.no_context_analysis = !opts.no_context_analysis">
+          [{{ !opts.no_context_analysis ? '✓' : ' ' }}] context-analysis</span>
+        <span class="opt" :class="{on: !opts.no_entropy}" @click="opts.no_entropy = !opts.no_entropy">
+          [{{ !opts.no_entropy ? '✓' : ' ' }}] entropy</span>
+        <span class="opt" :class="{on: validateLive}" @click="validateLive = !validateLive">
+          [{{ validateLive ? '✓' : ' ' }}] validate-live</span>
+      </div>
+
+      <div class="comment" style="margin-top:16px">// ASSEMBLED COMMAND</div>
+      <div class="cmd-preview"><span class="dollar">$</span> {{ commandPreview }}</div>
+
+      <div style="display:flex; gap:8px; margin-top:8px">
+        <button class="btn" :disabled="busy" @click="runScan">RUN SCAN ▶</button>
+        <button class="btn-ghost" @click="resetConfig">RESET</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Live Output ─────────────────────────────────────────── -->
+  <div v-show="screen === 'live'" class="fade-up">
+    <div class="prompt">
+      <span class="host">devops@credscan</span> <span class="dollar">$</span>
+      <span class="cmd"> {{ commandPreview }}</span><span class="cursor"></span>
+    </div>
+    <div class="comment">// streaming detector output · {{ statusWord }}</div>
+
+    <div class="panel">
+      <div class="progress" v-if="busy || liveLines.length">{{ progressText }}</div>
+      <div class="term" ref="term">
+        <span class="line" v-for="(ln,i) in liveLines" :key="i" :class="ln.cls">{{ ln.text }}</span>
+        <span v-if="busy" class="cursor"></span>
+      </div>
+    </div>
+
+    <div class="panel" v-if="findings.length">
+      <div class="sec-head"><span class="name">incoming-findings</span><span class="meta">[{{ findings.length }} captured]</span></div>
+      <div class="drow" v-for="(f,i) in findings.slice(0,8)" :key="i">
+        <span class="k"><span :class="'sev-'+f.severity" style="font-weight:700">{{ f.severity.toUpperCase() }}</span> {{ f.type }}</span>
+        <span class="tag">{{ shortFile(f.file) }}:{{ f.line }}</span>
+        <span class="v">{{ f.masked }}</span>
+      </div>
+      <button class="btn" style="margin-top:12px" @click="screen='report'">VIEW REPORT ▶</button>
+    </div>
+  </div>
+
+  <!-- ── Findings Report ─────────────────────────────────────── -->
+  <div v-show="screen === 'report'" class="fade-up">
+    <div class="prompt">
+      <span class="host">devops@credscan</span> <span class="dollar">$</span>
+      <span class="cmd"> credscan report --last</span><span class="cursor"></span>
+    </div>
+    <div class="comment">// {{ reportSummary }}</div>
+
+    <div class="panel">
+      <div class="filters">
+        <span style="color:var(--text-muted)">SEVERITY</span>
+        <select v-model="sevFilter">
+          <option value="">[all]</option>
+          <option v-for="s in ['critical','high','medium','low']" :key="s" :value="s">[{{ s }}]</option>
+        </select>
+        <input v-model="search" placeholder="⌕ search file/type" style="width:200px">
+        <span style="color:var(--text-muted)">{{ filtered.length }} shown</span>
+        <span class="export-row">
+          <button class="btn-ghost" @click="exportData('json')">JSON</button>
+          <button class="btn-ghost" @click="exportData('csv')">CSV</button>
+        </span>
+      </div>
+
+      <table class="ftable" v-if="filtered.length">
+        <thead><tr><th>SEVERITY</th><th>TYPE · FILE:LINE · MASKED</th><th>CONF</th></tr></thead>
+        <tbody>
+          <template v-for="(f,i) in filtered" :key="i">
+            <tr class="frow" @click="f._open = !f._open">
+              <td><span class="pill" :class="'sev-'+f.severity">{{ f.severity }}</span></td>
+              <td>
+                <strong>{{ f.type }}</strong>
+                <span style="color:var(--text-muted)"> · {{ shortFile(f.file) }}:{{ f.line }} · {{ f.masked }}</span>
+              </td>
+              <td>{{ Math.round(f.confidence*100) }}%</td>
+            </tr>
+            <tr v-show="f._open" class="detail">
+              <td colspan="3">
+                <div class="kv">
+                  <span class="k">detector</span><span>{{ f.detector }}</span>
+                  <span class="k">validation</span><span>{{ f.validation }}</span>
+                  <span class="k">context</span><span>{{ f.context_type || '—' }}</span>
+                  <span class="k">file</span><span>{{ f.file }}:{{ f.line }}</span>
+                </div>
+                <div class="comment">// remediation</div>
+                <pre>{{ f.remediation }}
+fix: {{ f.remediation_fix }}</pre>
+                <button class="btn-ghost" @click.stop="suppress(f)">SUPPRESS</button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <div v-else class="empty">no findings match filter</div>
+    </div>
+  </div>
+
+  <!-- ── Baseline Manager ────────────────────────────────────── -->
+  <div v-show="screen === 'baseline'" class="fade-up">
+    <div class="prompt">
+      <span class="host">devops@credscan</span> <span class="dollar">$</span>
+      <span class="cmd"> credscan baseline list</span><span class="cursor"></span>
+    </div>
+    <div class="comment">// suppressed findings excluded from scans · {{ baseline.length }} entries</div>
+
+    <div class="panel">
+      <table class="ftable" v-if="baseline.length">
+        <thead><tr><th>REASON</th><th>TYPE · FILE:LINE</th><th>ACTIONS</th></tr></thead>
+        <tbody>
+          <tr v-for="(b,i) in baseline" :key="i">
+            <td>{{ b.reason }}</td>
+            <td><strong>{{ b.type }}</strong><span style="color:var(--text-muted)"> · {{ shortFile(b.file) }}:{{ b.line }}</span></td>
+            <td><button class="btn-ghost" @click="restore(i)">RESTORE</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-else class="empty">baseline empty · no suppressed findings</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="dot">● {{ statusWord }}</span>
+    <span>{{ findings.length }} findings</span>
+    <span>{{ baseline.length }} suppressed</span>
+    <span>{{ clock }}</span>
+    <span>UTF-8</span>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

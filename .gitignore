@@ -51,3 +51,4 @@ credscan-report-*.pdf
 # Baseline files (project-specific, usually not committed)
 .credscan-baseline.json
 .credscan-hook.conf
+.playwright-mcp/
