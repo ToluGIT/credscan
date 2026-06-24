@@ -5,6 +5,7 @@ Per-commit scanning should look only at what changed, not re-walk the whole
 repository. This returns absolute paths of files that are added/copied/
 modified/renamed, either staged for commit or relative to a git ref.
 """
+
 import logging
 import os
 import subprocess
@@ -17,7 +18,9 @@ def _repo_root(cwd: Optional[str] = None) -> Optional[str]:
     try:
         out = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
             cwd=cwd if cwd and os.path.isdir(cwd) else None,
         )
         return out.stdout.strip()
@@ -25,7 +28,9 @@ def _repo_root(cwd: Optional[str] = None) -> Optional[str]:
         return None
 
 
-def changed_files(ref: Optional[str] = None, scan_path: Optional[str] = None) -> List[str]:
+def changed_files(
+    ref: Optional[str] = None, scan_path: Optional[str] = None
+) -> List[str]:
     """Return absolute paths of changed files.
 
     If ref is None, returns staged files (git diff --cached). Otherwise returns

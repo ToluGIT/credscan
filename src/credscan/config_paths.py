@@ -14,6 +14,7 @@ path: editable, wheel, sdist, and container. Resolution order:
 Returns the first directory that exists, or the in-package path as a last
 resort so callers still get a usable path to probe.
 """
+
 import os
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))

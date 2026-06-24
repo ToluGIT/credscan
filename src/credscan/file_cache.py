@@ -7,6 +7,7 @@ collapses those into a single disk read per file while keeping memory bounded:
 it is an LRU keyed by (path, mtime, size), so it never holds more than a fixed
 number of files' contents at once and transparently re-reads if a file changes.
 """
+
 import functools
 import os
 from typing import Optional

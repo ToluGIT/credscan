@@ -12,6 +12,7 @@ A verified-live token is close to 100% precision, which is the most persuasive
 signal a secrets scanner can produce. An unverifiable token (network error, or a
 provider we do not support) is reported as UNVERIFIED, never as a false negative.
 """
+
 import logging
 import time
 from typing import Any, Callable, Dict, List, Optional
@@ -35,6 +36,7 @@ class TokenValidator:
         if self._requests is None:
             try:
                 import requests
+
                 self._requests = requests
             except ImportError:
                 raise ImportError(
@@ -71,15 +73,20 @@ class TokenValidator:
         # GET /user is read-only and returns the authenticated user.
         resp = requests.get(
             "https://api.github.com/user",
-            headers={"Authorization": f"Bearer {token}",
-                     "Accept": "application/vnd.github+json"},
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+            },
             timeout=_TIMEOUT_SECONDS,
         )
         if resp.status_code == 200:
             login = resp.json().get("login", "")
             return {"valid": True, "identity": f"github user: {login}"}
         if resp.status_code in (401, 403):
-            return {"valid": False, "error": f"HTTP {resp.status_code} (invalid/revoked)"}
+            return {
+                "valid": False,
+                "error": f"HTTP {resp.status_code} (invalid/revoked)",
+            }
         return {"valid": None, "error": f"HTTP {resp.status_code}"}
 
     def _verify_slack(self, requests, token: str) -> Dict[str, Any]:
@@ -92,7 +99,10 @@ class TokenValidator:
         if resp.status_code == 200:
             data = resp.json()
             if data.get("ok"):
-                return {"valid": True, "identity": f"slack team: {data.get('team', '')}"}
+                return {
+                    "valid": True,
+                    "identity": f"slack team: {data.get('team', '')}",
+                }
             return {"valid": False, "error": data.get("error", "auth failed")}
         return {"valid": None, "error": f"HTTP {resp.status_code}"}
 
@@ -129,9 +139,14 @@ class TokenValidator:
                 body = resp.json()
             except Exception:
                 body = {}
-            desc = f"{body.get('error', '')} {body.get('error_description', '')}".lower()
+            desc = (
+                f"{body.get('error', '')} {body.get('error_description', '')}".lower()
+            )
             if resp.status_code == 401 or "invalid" in desc or "expired" in desc:
-                return {"valid": False, "error": f"HTTP {resp.status_code} (invalid/expired)"}
+                return {
+                    "valid": False,
+                    "error": f"HTTP {resp.status_code} (invalid/expired)",
+                }
             return {"valid": None, "error": f"HTTP {resp.status_code} (indeterminate)"}
         return {"valid": None, "error": f"HTTP {resp.status_code}"}
 
@@ -154,7 +169,11 @@ class TokenValidator:
         """
         provider = self.detect_provider(token)
         if provider is None:
-            return {"valid": None, "provider": None, "error": "no supported provider prefix"}
+            return {
+                "valid": None,
+                "provider": None,
+                "error": "no supported provider prefix",
+            }
 
         self._rate_limit()
         try:
@@ -170,7 +189,7 @@ class TokenValidator:
         """Attach a verification verdict to findings whose value is a known
         single-token provider secret."""
         for finding in findings:
-            value = (finding.get("value", "") or "").strip().strip('\'"')
+            value = (finding.get("value", "") or "").strip().strip("'\"")
             # The value may be a full line; extract a token-looking substring.
             token = self._extract_token(value)
             if not token:
@@ -186,17 +205,20 @@ class TokenValidator:
             elif result["valid"] is False:
                 finding["verification"] = f"INVALID: {result.get('error', 'revoked')}"
             else:
-                finding["verification"] = f"UNVERIFIED: {result.get('error', 'unknown')}"
+                finding["verification"] = (
+                    f"UNVERIFIED: {result.get('error', 'unknown')}"
+                )
         return findings
 
     @staticmethod
     def _extract_token(value: str) -> Optional[str]:
         import re
+
         m = re.search(
-            r'(ghp_[A-Za-z0-9]{30,40}|gh[ousr]_[A-Za-z0-9]{30,40}|'
-            r'xox[baprs]-[A-Za-z0-9-]{10,}|'
-            r'(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}|'
-            r'ya29\.[A-Za-z0-9_\-]+)',
+            r"(ghp_[A-Za-z0-9]{30,40}|gh[ousr]_[A-Za-z0-9]{30,40}|"
+            r"xox[baprs]-[A-Za-z0-9-]{10,}|"
+            r"(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}|"
+            r"ya29\.[A-Za-z0-9_\-]+)",
             value,
         )
         return m.group(1) if m else None

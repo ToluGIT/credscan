@@ -12,23 +12,28 @@ Controls referenced:
   - PCI-DSS v4.0 8.6.2 / 6.3.1    (no hard-coded account credentials; secure dev)
   - OWASP ASVS V2.10              (service authentication secrets not in source)
 """
+
 from typing import Any, Dict, List
 
 from credscan.remediation import _key_for_finding  # reuse the same classifier
 
 # Controls that apply to every hard-coded credential finding.
 _BASE_CONTROLS = [
-    "NIST 800-53 IA-5(7)",   # no embedded unencrypted static authenticators
-    "PCI-DSS 8.6.2",          # do not hard-code passwords/passphrases for accounts
-    "OWASP ASVS V2.10",       # service authentication secrets not in source
+    "NIST 800-53 IA-5(7)",  # no embedded unencrypted static authenticators
+    "PCI-DSS 8.6.2",  # do not hard-code passwords/passphrases for accounts
+    "OWASP ASVS V2.10",  # service authentication secrets not in source
 ]
 
 # CWE per finding family (mirrors the SARIF CWE mapping).
 _CWE_BY_KEY = {
-    "private_keys": "CWE-321",   # hard-coded cryptographic key
-    "database": "CWE-259",       # hard-coded password (often)
-    "aws": "CWE-798", "gcp": "CWE-798", "github": "CWE-798",
-    "slack": "CWE-798", "stripe": "CWE-798", "jwt": "CWE-798",
+    "private_keys": "CWE-321",  # hard-coded cryptographic key
+    "database": "CWE-259",  # hard-coded password (often)
+    "aws": "CWE-798",
+    "gcp": "CWE-798",
+    "github": "CWE-798",
+    "slack": "CWE-798",
+    "stripe": "CWE-798",
+    "jwt": "CWE-798",
     "generic": "CWE-798",
 }
 
@@ -38,8 +43,9 @@ def controls_for(finding: Dict[str, Any]) -> List[str]:
     key = _key_for_finding(finding)
     cwe = _CWE_BY_KEY.get(key, "CWE-798")
     # Password-specific findings are CWE-259 even outside the database family.
-    haystack = " ".join(str(finding.get(k, "")) for k in
-                        ("rule_name", "type", "description")).lower()
+    haystack = " ".join(
+        str(finding.get(k, "")) for k in ("rule_name", "type", "description")
+    ).lower()
     if "password" in haystack and cwe == "CWE-798":
         cwe = "CWE-259"
     controls = [cwe] + list(_BASE_CONTROLS)
