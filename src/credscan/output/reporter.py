@@ -96,6 +96,8 @@ class Reporter:
                 self.report_html(findings, statistics)
             elif output_format == 'pdf':
                 self.report_pdf(findings, statistics)
+            elif output_format == 'compliance':
+                self.report_compliance(findings, statistics)
             else:
                 logger.warning(f"Unsupported output format: {output_format}")
     
@@ -473,10 +475,48 @@ class Reporter:
             
             logger.info(f"CSV report saved to {output_file}")
             print(f"\nCSV report saved to {output_file}")
-            
+
         except Exception as e:
             logger.error(f"Error writing CSV report: {e}")
-    
+
+    def report_compliance(self, findings: List[Dict[str, Any]], statistics: Dict[str, Any]):
+        """Write a control-mapped compliance report (CSV via stdlib csv).
+
+        Each row maps a finding to the security controls it implicates
+        (CWE / NIST 800-53 / PCI-DSS / OWASP ASVS) and the remediation step.
+        Values are masked; this report is for auditors, not for secrets.
+        """
+        import csv
+        from credscan.compliance import controls_for
+
+        os.makedirs(self.output_directory, exist_ok=True)
+        output_file = os.path.join(
+            self.output_directory,
+            f"credscan-compliance-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv",
+        )
+        try:
+            with open(output_file, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    "File", "Line", "Severity", "Finding", "Masked Value",
+                    "Controls", "Remediation",
+                ])
+                for finding in findings:
+                    controls = "; ".join(controls_for(finding))
+                    writer.writerow([
+                        finding.get('path', ''),
+                        finding.get('line', ''),
+                        finding.get('severity', 'medium'),
+                        finding.get('rule_name', ''),
+                        self._mask_value(finding.get('value', '')),
+                        controls,
+                        _remediation_text(finding),
+                    ])
+            logger.info(f"Compliance report saved to {output_file}")
+            print(f"\nCompliance report saved to {output_file}")
+        except Exception as e:
+            logger.error(f"Error writing compliance report: {e}")
+
     def report_html(self, findings: List[Dict[str, Any]], statistics: Dict[str, Any]):
         """
         Output findings in HTML format to a file.

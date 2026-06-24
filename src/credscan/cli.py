@@ -77,7 +77,7 @@ def parse_args():
     # ── Output ────────────────────────────────────────────────────────────────
     output = parser.add_argument_group('Output')
     output.add_argument('--output', '-o', metavar='FORMAT', type=str, default='console',
-                        help='Report format(s): console, json, sarif, html, excel, csv, pdf  (default: console)')
+                        help='Report format(s): console, json, sarif, html, excel, csv, pdf, compliance  (default: console)')
     output.add_argument('--output-dir', '-d', metavar='DIR', type=str, default='.',
                         help='Directory for saved reports (default: .)')
     output.add_argument('--group-by-severity', action='store_true',

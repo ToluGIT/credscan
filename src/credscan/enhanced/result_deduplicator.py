@@ -53,8 +53,8 @@ class ResultDeduplicator:
 
     def _load_known_test_credentials(self) -> Set[str]:
         """Load well-known test/example credentials from the data file."""
-        config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
-        path = os.path.join(config_dir, 'known_test_credentials.json')
+        from credscan.config_paths import config_file
+        path = config_file('known_test_credentials.json')
         try:
             with open(path, 'r') as f:
                 data = json.load(f)

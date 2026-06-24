@@ -184,13 +184,14 @@ Reports are generated with `--output` and saved to `--output-dir`:
 | Format | Use case |
 |--------|----------|
 | `console` | Default; colored, with confidence scores and context |
-| `json` | Audit log; full finding detail |
+| `json` | Audit log; full finding detail plus remediation guidance |
 | `sarif` | GitHub Code Scanning, VS Code, and other SARIF-compatible tools |
 | `html` | Shareable report; values are masked and HTML-escaped |
 | `excel` / `csv` | Spreadsheet-based triage |
 | `pdf` | Printable report |
+| `compliance` | CSV mapping each finding to controls (CWE-798, NIST 800-53 IA-5, PCI-DSS, OWASP ASVS) plus remediation |
 
-Secret values are masked in all human-readable output (`AKIA...MPLE`) and full values are only present in the JSON audit log. The HTML report is generated with proper escaping so content from scanned files cannot execute as code in the browser.
+Secret values are masked in all human-readable output (`AKIA...MPLE`) and full values are only present in the JSON audit log. The HTML report is generated with proper escaping so content from scanned files cannot execute as code in the browser. The SARIF output validates against the official SARIF 2.1.0 schema, carries CWE tags, and uses stable `partialFingerprints` for dedup across runs.
 
 ---
 
@@ -234,19 +235,44 @@ BASELINE_FILE=".credscan-baseline.json"
 
 ## CI/CD integration
 
-CredScan exits with code `1` if any credentials are found, making it straightforward to fail a pipeline:
+CredScan ships an official GitHub Action. It produces SARIF that uploads to the
+repository's Security tab, and fails the job when credentials are found:
 
 ```yaml
-# GitHub Actions example
-- name: Scan for credentials
-  run: |
-    pip install credscan
-    credscan -p . --no-color -o sarif -d ./reports --min-confidence 0.5
-  
-- name: Upload SARIF to GitHub Security tab
-  uses: github/codeql-action/upload-sarif@v3
-  with:
-    sarif_file: ./reports/
+# .github/workflows/secrets.yml
+name: Secret Scan
+on: [push, pull_request]
+jobs:
+  credscan:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # required to upload SARIF
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run CredScan
+        id: scan
+        uses: ToluGIT/credscan@v1
+        with:
+          path: .
+          min-confidence: "0.5"
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif-file }}
+```
+
+Or run the CLI directly in any pipeline (exit code `1` means findings):
+
+```bash
+pip install credscan
+credscan -p . --no-color -o sarif -d ./reports --min-confidence 0.5
+```
+
+A pre-built Docker image is also available:
+
+```bash
+docker run --rm -v "$PWD:/scan" ghcr.io/tolugit/credscan -p /scan
 ```
 
 ---

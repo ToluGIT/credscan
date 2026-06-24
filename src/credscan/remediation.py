@@ -95,9 +95,11 @@ def _key_for_finding(finding: Dict[str, Any]) -> str:
     # back to a broad category alias (e.g. structural_high_value -> generic).
     if "private key" in haystack or "rsa" in haystack or "pem" in haystack:
         return "private_keys"
-    # Direct category alias next.
+    # Direct category alias next, but skip the catch-all 'structural_high_value'
+    # which is too broad -- let the rule-name haystack below disambiguate it
+    # (a structural AWS/GitHub/Stripe pattern should get specific guidance).
     cat = str(finding.get("pattern_category", "")).lower()
-    if cat in _CATEGORY_ALIASES:
+    if cat in _CATEGORY_ALIASES and cat != "structural_high_value":
         return _CATEGORY_ALIASES[cat]
     # Otherwise infer from the haystack.
     for token, key in (("aws", "aws"), ("gcp", "gcp"), ("google", "gcp"),

@@ -30,9 +30,9 @@ class ContextAnalyzer:
     def _load_context_patterns(self) -> Dict[str, Any]:
         """Load context patterns from configuration file."""
         try:
-            config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
-            patterns_file = os.path.join(config_dir, 'context_patterns.json')
-            
+            from credscan.config_paths import config_file
+            patterns_file = config_file('context_patterns.json')
+
             if os.path.exists(patterns_file):
                 with open(patterns_file, 'r') as f:
                     return json.load(f)

@@ -1,0 +1,7 @@
+- id: credscan
+  name: CredScan (secret detection)
+  description: Scan staged files for hard-coded credentials and secrets.
+  entry: credscan --hook-scan --hook-config block --no-color
+  language: python
+  pass_filenames: false
+  always_run: true

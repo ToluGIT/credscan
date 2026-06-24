@@ -1,0 +1,71 @@
+name: "CredScan"
+description: "Scan a repository for hard-coded credentials and secrets, with SARIF output for GitHub code scanning."
+author: "ToluGIT"
+branding:
+  icon: "shield"
+  color: "red"
+
+inputs:
+  path:
+    description: "Path to scan."
+    required: false
+    default: "."
+  output:
+    description: "Comma-separated output formats (console, json, sarif, html, csv)."
+    required: false
+    default: "sarif"
+  output-dir:
+    description: "Directory for report files."
+    required: false
+    default: "credscan-reports"
+  min-confidence:
+    description: "Minimum confidence (0.0-1.0) to report a finding."
+    required: false
+    default: "0.5"
+  exclude:
+    description: "Comma-separated path patterns to skip."
+    required: false
+    default: ".git/,node_modules/,*.pyc"
+  fail-on-findings:
+    description: "Fail the job (exit 1) if any credentials are found."
+    required: false
+    default: "true"
+
+outputs:
+  sarif-file:
+    description: "Path to the generated SARIF report (if sarif output was requested)."
+    value: ${{ steps.scan.outputs.sarif-file }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install CredScan
+      shell: bash
+      run: pip install -e "${{ github.action_path }}"
+
+    - name: Run CredScan
+      id: scan
+      shell: bash
+      run: |
+        set +e
+        credscan \
+          --path "${{ inputs.path }}" \
+          --output "${{ inputs.output }}" \
+          --output-dir "${{ inputs.output-dir }}" \
+          --min-confidence "${{ inputs.min-confidence }}" \
+          --exclude "${{ inputs.exclude }}" \
+          --no-color
+        code=$?
+
+        sarif=$(ls "${{ inputs.output-dir }}"/*.sarif 2>/dev/null | head -1 || true)
+        echo "sarif-file=$sarif" >> "$GITHUB_OUTPUT"
+
+        if [ "${{ inputs.fail-on-findings }}" = "true" ]; then
+          exit $code
+        fi
+        exit 0

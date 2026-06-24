@@ -122,3 +122,20 @@ class TestNoSecretLeak:
         # The full AWS key must never appear verbatim in the SARIF file.
         assert AWS_SECRET not in raw
         assert "Pr0dDb_Pass_X7y2Kp9Q" not in raw
+
+
+class TestSchemaValidation:
+    """Validate output against the vendored official SARIF 2.1.0 schema."""
+
+    def test_validates_against_official_schema(self, sarif):
+        jsonschema = pytest.importorskip("jsonschema")
+        schema_path = os.path.join(
+            os.path.dirname(__file__), "schemas", "sarif-schema-2.1.0.json"
+        )
+        if not os.path.exists(schema_path):
+            pytest.skip("vendored SARIF schema not present")
+        with open(schema_path) as f:
+            schema = json.load(f)
+        _, doc = sarif
+        # Raises jsonschema.ValidationError on any deviation.
+        jsonschema.validate(instance=doc, schema=schema)

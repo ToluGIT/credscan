@@ -99,8 +99,8 @@ def load_default_patterns() -> PatternLibrary:
 
     # First try to load from comprehensive patterns file
     try:
-        config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
-        comprehensive_patterns_file = os.path.join(config_dir, 'comprehensive_patterns.json')
+        from credscan.config_paths import config_file
+        comprehensive_patterns_file = config_file('comprehensive_patterns.json')
 
         if os.path.exists(comprehensive_patterns_file):
             with open(comprehensive_patterns_file, 'r') as f:
