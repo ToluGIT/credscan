@@ -33,16 +33,30 @@ event so the score is not inflated by overlap.
   config, and a public key. These files should produce zero findings.
 - `corpus/labels.json` is the ground truth.
 
-## Honest caveats
+## What this benchmark is, and is not
 
-- The corpus is **small and curated** (see the printed counts). A high score
-  here demonstrates that the documented detectors and false-positive guards work
-  on representative inputs. It is **not** a claim about precision/recall on
-  arbitrary production repositories, which would require a much larger,
-  independently labeled dataset.
+This is a **regression suite, not an independent benchmark.** Its job is to stop
+detector quality from silently degrading between changes, not to prove CredScan
+beats other tools on a neutral dataset.
+
+The corpus and several detector fixes were authored together: the corpus was
+built first, run against the engine, and the failing cases it exposed drove
+fixes (a private-key pattern that was never loaded; false positives on
+environment references, placeholders, and hashes). The current perfect score
+records that those specific fixes landed, nothing more. Because the corpus and
+the detectors evolved together, the score is **not** evidence of generalization,
+and you should read it as "the documented detectors and false-positive guards
+behave as intended on representative inputs," not as a production precision
+figure.
+
+A defensible production number would require a much larger, independently labeled
+dataset (for example, a public secrets benchmark scanned by multiple tools). That
+is future work and is called out as such; until then no such claim is made.
+
+- The corpus is **small and curated** (see the printed counts).
 - All secret values are **synthetic** and fabricated for testing. None are live.
-- The harness is wired into the test suite (`tests/test_benchmark.py`) as a
-  regression gate, so detector changes that degrade quality fail CI.
+- The harness is wired into the test suite (`tests/test_benchmark.py`) and CI as
+  a regression gate, so detector changes that degrade quality fail the build.
 
 ## Extending it
 

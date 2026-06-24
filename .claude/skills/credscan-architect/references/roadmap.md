@@ -4,6 +4,17 @@ Ordered by **credibility ROI**: each phase makes the project more defensible to 
 
 Legend: **P0** = credibility floor (do first) … **P5** = distribution & polish.
 
+## Phase gate: Codex review between every phase (mandatory)
+
+A phase is not "done" until it has passed an independent Codex review. After completing the items in a phase and before starting the next one:
+
+1. Run the phase's acceptance tests yourself; capture the evidence (benchmark numbers, test output, generated artifacts).
+2. Hand the phase's diff and evidence to Codex (via the `codex:codex-rescue` subagent) with a skeptical-staff-engineer brief: confirm the acceptance criteria are truly met, find correctness bugs, find domain mistakes, and flag anything that reads as AI-generic or overclaimed.
+3. Triage Codex's findings: fix the real ones; for anything dismissed, write one line on why. Re-run acceptance tests.
+4. Only then mark the phase complete and move on. Record the review outcome (what was found, what was fixed) so the trail is auditable.
+
+This gate is non-negotiable: it is how the project stays honest between phases instead of accumulating unverified claims. The cost of a review is far less than a reviewer finding the bug in your portfolio.
+
 ---
 
 ## P0 #0 — Portfolio-Ready Floor (the verifiable gate)

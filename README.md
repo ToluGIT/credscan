@@ -50,12 +50,13 @@ files of decoys: env references, placeholders, hashes, UUIDs, base64 config):
 PYTHONPATH=src python benchmarks/run.py
 ```
 
-This corpus is small and curated, so a perfect score demonstrates the documented
-detectors and false-positive guards work on representative inputs. It is not a
-claim about precision on arbitrary repositories, which would need a much larger
-independent dataset. The benchmark runs in CI as a regression gate
-(`--fail-under-f1 0.90`), and the harness is described in
-[benchmarks/README.md](benchmarks/README.md).
+This is a **regression suite, not an independent benchmark.** The corpus and
+several detector fixes were authored together, so the perfect score records that
+those fixes behave as intended on representative inputs; it is not evidence of
+generalization, and it is not a production precision figure. Its purpose is to
+fail CI (`--fail-under-f1 0.90`) if a change degrades detection. A neutral
+cross-tool comparison on a larger labeled dataset is future work. See
+[benchmarks/README.md](benchmarks/README.md) for the full design notes.
 
 Test coverage is currently 27% (`pytest --cov`); the detection pipeline,
 parsers, and SARIF output are well covered, while the git-history, web, and
