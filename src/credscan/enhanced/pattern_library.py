@@ -106,7 +106,17 @@ def load_default_patterns() -> PatternLibrary:
             with open(comprehensive_patterns_file, 'r') as f:
                 comprehensive_data = json.load(f)
 
-            # Convert comprehensive patterns to enhanced patterns
+            # Generic single words (key, secret, token, auth, pass, cert, ...)
+            # match real code like `key = item.get('key')` if used naively, which
+            # floods false positives. For these we require a QUOTED value with a
+            # secret-like length/charset; for more specific multi-word keywords a
+            # lighter pattern is acceptable.
+            generic_keywords = {
+                'key', 'secret', 'token', 'pass', 'auth', 'access', 'cert',
+                'api', 'salt', 'pin', 'sid', 'sig', 'password', 'passwd', 'pwd',
+                'credential', 'credentials',
+            }
+
             for category_name, pattern_list in comprehensive_data.items():
                 category = PatternCategory(
                     name=category_name.lower().replace(' ', '_').replace('/', '_'),
@@ -114,10 +124,27 @@ def load_default_patterns() -> PatternLibrary:
                 )
 
                 for pattern_keyword in pattern_list:
-                    # Create regex patterns for each keyword
+                    kw = re.escape(pattern_keyword)
+                    is_generic = pattern_keyword.lower() in generic_keywords
+                    if is_generic:
+                        # Require a quoted value, word-boundary on the keyword,
+                        # and a value that is not a code expression (no spaces,
+                        # parens, dots, brackets) and is long enough to be a
+                        # secret rather than a flag like "yes"/"true".
+                        pattern = (
+                            rf"(?i)\b{kw}\b\s*[:=]\s*"
+                            rf"['\"]([A-Za-z0-9_\-./+=]{{8,}})['\"]"
+                        )
+                    else:
+                        # Specific keyword: quoted-or-unquoted but still require a
+                        # word boundary and a value that isn't a code expression.
+                        pattern = (
+                            rf"(?i)\b{kw}\b\s*[:=]\s*"
+                            rf"['\"]?([A-Za-z0-9_\-./+=]{{6,}})['\"]?"
+                        )
                     category.add_pattern(CredentialPattern(
                         name=f"{pattern_keyword.replace('_', ' ').title()}",
-                        pattern=rf"(?i){re.escape(pattern_keyword)}\s*[:=]\s*['\"]?([^\s'\"{{}}]+)['\"]?",
+                        pattern=pattern,
                         description=f"Detects {pattern_keyword} credentials",
                         severity="high" if any(x in pattern_keyword.lower() for x in ['secret', 'key', 'token', 'password']) else "medium",
                         confidence=0.8

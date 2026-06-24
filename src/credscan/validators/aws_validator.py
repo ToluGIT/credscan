@@ -131,20 +131,20 @@ class AWSCredentialValidator:
             secret = secret_keys.get(path, '')
 
             if not secret:
-                finding['aws_validation'] = 'SKIPPED — no matching secret key found in same file'
+                finding['aws_validation'] = 'SKIPPED: no matching secret key found in same file'
                 continue
 
             result = self.validate(access_key_id, secret)
 
             if result['valid'] is True:
                 finding['aws_validation'] = (
-                    f"ACTIVE — Account: {result['account_id']}, "
-                    f"ARN: {result['user_arn']} [{result['key_type']}]"
+                    f"ACTIVE: Account {result['account_id']}, "
+                    f"ARN {result['user_arn']} [{result['key_type']}]"
                 )
                 finding['severity'] = 'critical'
             elif result['valid'] is False:
-                finding['aws_validation'] = f"INVALID — {result.get('error', 'unknown')}"
+                finding['aws_validation'] = f"INVALID: {result.get('error', 'unknown')}"
             else:
-                finding['aws_validation'] = f"UNKNOWN — {result.get('error', 'network error')}"
+                finding['aws_validation'] = f"UNKNOWN: {result.get('error', 'network error')}"
 
         return findings

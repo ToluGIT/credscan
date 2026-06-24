@@ -9,6 +9,9 @@ import datetime
 from typing import Dict, Any, List
 import logging
 
+from credscan.remediation import remediation_for as _remediation_for
+from credscan.remediation import remediation_text as _remediation_text
+
 # Enhanced output format dependencies
 try:
     import pandas as pd
@@ -177,15 +180,22 @@ class Reporter:
             findings: List of detection findings
             statistics: Dictionary of scan statistics
         """
+        # Attach remediation guidance to each finding for the audit record.
+        enriched = []
+        for finding in findings:
+            f = dict(finding)
+            f.setdefault("remediation", _remediation_for(finding))
+            enriched.append(f)
+
         report = {
             "scan_time": datetime.datetime.now().isoformat(),
             "statistics": statistics,
-            "findings": findings
+            "findings": enriched
         }
-        
+
         # Ensure output directory exists
         os.makedirs(self.output_directory, exist_ok=True)
-        
+
         # Create output file
         output_file = os.path.join(self.output_directory, f"credscan-report-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.json")
         
@@ -245,8 +255,7 @@ class Reporter:
                     },
                     "helpUri": f"https://cwe.mitre.org/data/definitions/{cwe_num}.html",
                     "help": {
-                        "text": "Detects hard-coded credentials/secrets. Rotate any confirmed "
-                                "secret and move it to a managed secret store."
+                        "text": _remediation_text(finding)
                     },
                     "properties": {
                         "security-severity": str(self._severity_to_number(finding.get('severity', 'medium'))),
@@ -780,8 +789,22 @@ class Reporter:
                 risk_color = c['red'] if risk_level == 'high' else c['yellow'] if risk_level == 'medium' else c['green']
                 print(f"  Context: {context_type} ({risk_color}{risk_level} risk{c['reset']})")
             
+            # Show verification verdict if a validator ran
+            verification = finding.get('verification') or finding.get('aws_validation')
+            if verification and not is_excluded:
+                vcolor = c['red'] if verification.startswith('ACTIVE') else c['dim']
+                print(f"  Verification: {vcolor}{verification}{c['reset']}")
+
+            # Show remediation guidance (skip for clearly-excluded findings)
+            if not is_excluded:
+                r = _remediation_for(finding)
+                print(f"  {c['cyan']}Remediation:{c['reset']} {r['action']}")
+                if r.get('revoke'):
+                    print(f"    Revoke: {r['revoke']}")
+                print(f"    Fix: {r['root_cause']}")
+
             # Show exclusion ID if excluded
             if is_excluded and finding.get('exclusion_id'):
                 print(f"  Exclusion ID: {finding.get('exclusion_id')}")
-                
+
             print()

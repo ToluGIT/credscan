@@ -112,6 +112,9 @@ def parse_args():
     cloud = parser.add_argument_group('Cloud Security')
     cloud.add_argument('--validate-aws', action='store_true',
                        help='Verify discovered AWS keys via sts:GetCallerIdentity (read-only, opt-in)')
+    cloud.add_argument('--verify', action='store_true',
+                       help='Verify discovered tokens against provider identity endpoints '
+                            '(GitHub/GCP/Slack/Stripe; read-only, opt-in)')
 
     # ── Git Integration ───────────────────────────────────────────────────────
     git = parser.add_argument_group('Git Integration')
@@ -521,6 +524,13 @@ BASELINE_FILE=".credscan-baseline.json"
         from credscan.validators import AWSCredentialValidator
         validator = AWSCredentialValidator(config)
         findings = validator.enrich_findings(findings)
+
+    # Optionally verify discovered tokens against provider endpoints (opt-in)
+    if getattr(args, 'verify', False) and findings:
+        logger.info("Verifying discovered tokens against provider identity endpoints...")
+        from credscan.validators import TokenValidator
+        token_validator = TokenValidator(config)
+        findings = token_validator.enrich_findings(findings)
 
     # Handle baseline operations
     if args.create_baseline:

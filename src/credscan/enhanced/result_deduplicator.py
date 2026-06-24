@@ -3,6 +3,8 @@ Result deduplication and grouping system for credential detection.
 """
 
 import hashlib
+import json
+import os
 import re
 from typing import Dict, List, Any, Set, Tuple
 from collections import defaultdict
@@ -17,28 +19,11 @@ class ResultDeduplicator:
     def __init__(self, config: Dict[str, Any] = None):
         """Initialize the deduplicator."""
         self.config = config or {}
-        
-        # Known test/example credentials that should be marked as such
-        self.known_test_credentials = {
-            # AWS Examples (from AWS documentation)
-            'AKIAIOSFODNN7EXAMPLE',
-            'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-            'ASIAIREXAMPLE',
-            
-            # Common test patterns
-            'test123', 'password123', 'admin123', 'secret123',
-            'dummy', 'example', 'sample', 'placeholder',
-            'changeme', 'default', 'password', 'admin',
-            
-            # GitHub test tokens
-            'ghp_1234567890abcdefghijklmnopqrstuvwxyz123456',
-            
-            # Slack test tokens  
-            'xoxb-1234567890123-1234567890123-abcdefghijklmnopqrstuvwx',
-            
-            # Common JWT test
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
-        }
+
+        # Known test/example credentials are loaded from a data file rather than
+        # hard-coded here, so that CredScan does not flag its own fixtures when
+        # scanning its own source.
+        self.known_test_credentials = self._load_known_test_credentials()
         
         # Test patterns to identify likely test credentials. These are matched
         # with re.search against the finding value (often a full line), so they
@@ -59,7 +44,25 @@ class ResultDeduplicator:
         
         # Compile patterns for efficiency
         self.compiled_test_patterns = [re.compile(pattern) for pattern in self.test_patterns]
-    
+
+    # Fallback set used if the data file is missing; kept minimal on purpose.
+    _FALLBACK_TEST_CREDENTIALS = {
+        'dummy', 'example', 'sample', 'placeholder',
+        'changeme', 'default', 'password', 'admin',
+    }
+
+    def _load_known_test_credentials(self) -> Set[str]:
+        """Load well-known test/example credentials from the data file."""
+        config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
+        path = os.path.join(config_dir, 'known_test_credentials.json')
+        try:
+            with open(path, 'r') as f:
+                data = json.load(f)
+            return set(data.get('values', [])) or set(self._FALLBACK_TEST_CREDENTIALS)
+        except Exception as e:
+            logger.debug(f"Could not load known_test_credentials.json: {e}")
+            return set(self._FALLBACK_TEST_CREDENTIALS)
+
     def deduplicate_findings(self, findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Deduplicate findings by grouping similar detections.
@@ -302,17 +305,27 @@ class ResultDeduplicator:
             if re.search(pat, rhs, re.IGNORECASE):
                 return True
 
-        # A QUOTED right-hand side is a literal value, not a reference -- do not
-        # classify it here (its content is judged elsewhere).
-        is_quoted = bool(re.match(r'''^["']''', rhs))
-        if is_quoted:
-            return False
-
         bare = rhs.rstrip(',)')
+
         # A value carrying a known provider prefix is a real secret, never a
-        # variable reference, even though it is unquoted (common in .env files).
+        # reference -- check this FIRST so e.g. a JWT (eyJ...) with dots is not
+        # mistaken for attribute access below.
         if re.match(r'(?i)(AKIA|ASIA|hf_|sk-|sk_|rk_|ghp_|gho_|ghu_|ghs_|ghr_|xox[baprs]-|AIza|glpat-|eyJ)', bare):
             return False
+
+        # A QUOTED right-hand side is a literal value, not a reference -- do not
+        # classify it here (its content is judged elsewhere).
+        if re.match(r'''^["']''', rhs):
+            return False
+
+        # A code expression (function call or attribute access) is not a literal
+        # secret, e.g. `match.group('key')`, `cfg.get('token')`. Require an
+        # actual call `(` or index `[`, or a method chain `.name(`, so a bare
+        # dotted token is not misread as code.
+        if re.match(r'^[A-Za-z_][A-Za-z0-9_]*\s*[(\[]', bare) or \
+           re.match(r'^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*\s*\(', bare):
+            return True
+
         # An UNQUOTED all-caps/underscore identifier (e.g.
         # aws_access_key_id=AWS_ACCESS_KEY_ID, or =MY_CONSTANT) is a variable
         # reference, not a hardcoded literal. Require it to look like an
