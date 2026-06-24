@@ -215,6 +215,18 @@ credscan -p . --baseline-file .credscan-baseline.json --mark-fp <finding-id>
 
 ---
 
+## Incremental scanning
+
+For per-commit and CI use, scan only what changed instead of the whole tree:
+
+```bash
+credscan --staged             # only git-staged files (pre-commit)
+credscan --diff origin/main   # only files changed vs a base branch (CI)
+```
+
+Diff mode reads the changed-file list from git and scans just those paths, so a
+typical commit scans in well under a second regardless of repository size.
+
 ## Pre-commit hook
 
 Install CredScan as a git pre-commit hook to prevent secrets from being committed in the first place:

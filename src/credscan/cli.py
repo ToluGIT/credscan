@@ -67,6 +67,10 @@ def parse_args():
                         help='Comma-separated path patterns to skip  e.g. "node_modules/,*.log"')
     target.add_argument('--include', '-i', metavar='PATTERNS', type=str,
                         help='Only scan paths matching these comma-separated patterns')
+    target.add_argument('--staged', action='store_true',
+                        help='Scan only git-staged changes (fast; for pre-commit)')
+    target.add_argument('--diff', metavar='REF', type=str,
+                        help='Scan only files changed vs a git ref  e.g. origin/main')
     target.add_argument('--url', metavar='URL', type=str,
                         help='Web URL to scan for credentials')
     target.add_argument('--crawl', action='store_true',
@@ -218,6 +222,14 @@ def build_config_from_args(args) -> Dict[str, Any]:
     config['scan_path'] = args.path
     config['verbose'] = args.verbose
     config['max_workers'] = args.workers
+
+    # Incremental / diff scanning: restrict to changed files via git.
+    if getattr(args, 'staged', False) or getattr(args, 'diff', None):
+        from credscan.diff import changed_files
+        ref = getattr(args, 'diff', None)
+        files = changed_files(ref, scan_path=args.path)
+        config['explicit_files'] = files
+        logger.info(f"Diff mode: {len(files)} changed file(s) to scan")
     
     # Configure output formats
     output_formats = args.output.split(',')

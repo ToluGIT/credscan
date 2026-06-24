@@ -154,12 +154,14 @@ class EnhancedScanEngine(ScanEngine):
         enhanced_findings = []
         
         try:
-            with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
-                content = f.read()
-            
+            from credscan.file_cache import read_text
+            content = read_text(filepath)
+            if content is None:
+                return findings
+
             # Extract individual lines for better context
             lines = content.split('\n')
-            
+
             # Check lines for patterns
             for line_num, line in enumerate(lines, 1):
                 line = line.strip()

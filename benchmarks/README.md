@@ -13,6 +13,46 @@ PYTHONPATH=src python benchmarks/run.py --json
 PYTHONPATH=src python benchmarks/run.py --fail-under-f1 0.90
 ```
 
+## Throughput
+
+Detection quality is the priority, but a scan also has to be fast enough that
+nobody disables it. `throughput.py` generates a fixed synthetic corpus and times
+a full scan:
+
+```bash
+PYTHONPATH=src python benchmarks/throughput.py --files 500
+PYTHONPATH=src python benchmarks/throughput.py --files 2000 --json
+```
+
+Measured on the development machine (Apple Silicon, Python 3.12), CredScan scans
+roughly **400 files/second** through the full pipeline (pattern matching +
+entropy + context + confidence). CredScan is pure Python and does not try to
+match Go scanners (gitleaks, TruffleHog) on raw speed; it competes on signal
+quality and source coverage. The number here exists to catch regressions and to
+set honest expectations.
+
+Each file is read from disk once per scan via a small bounded LRU cache
+(`credscan/file_cache.py`); on this corpus that collapses the parser, pattern,
+and entropy reads into one and gives a modest (~few percent) speedup, with the
+main benefit being bounded memory and no repeated IO. The dominant cost is regex
+and entropy CPU work, not IO.
+
+### Performance targets
+
+- **Incremental / pre-commit scan** (`--staged`): should feel instant. Because
+  it scans only the files changed in the commit (typically a handful), it
+  completes in well under a second on a normal change set.
+- **Full mid-size repo scan**: should stay in a range a developer tolerates on
+  demand or in CI (order of seconds to low tens of seconds for a few thousand
+  files). If a full scan is ever too slow for a hook, use `--staged`.
+
+```bash
+# Pre-commit: scan only what changed (fast path)
+credscan --staged
+# CI: scan everything changed versus the base branch
+credscan --diff origin/main
+```
+
 ## How scoring works
 
 Matching is at **line granularity**. A finding is a true positive if its

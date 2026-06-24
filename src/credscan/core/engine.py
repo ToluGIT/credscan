@@ -90,12 +90,24 @@ class ScanEngine:
     def find_files(self) -> List[str]:
         """
         Find all files to scan in the specified path.
-        
+
         Returns:
             List[str]: List of file paths to scan
         """
         files_to_scan = []
-        
+
+        # Incremental / diff mode: an explicit file list is provided (e.g. the
+        # files changed in a commit). Scan only those, still honoring exclude
+        # patterns, and skip the full filesystem walk entirely.
+        explicit = self.config.get('explicit_files')
+        if explicit is not None:
+            for filepath in explicit:
+                if os.path.isfile(filepath) and self.should_scan_file(filepath):
+                    files_to_scan.append(filepath)
+            self.files_found = len(files_to_scan)
+            logger.info(f"Found {self.files_found} files to scan (diff mode)")
+            return files_to_scan
+
         # Check if scan_path is a single file
         if os.path.isfile(self.scan_path):
             if self.should_scan_file(self.scan_path):

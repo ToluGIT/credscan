@@ -69,14 +69,13 @@ class ContextAwareEngine:
         # Only read files that actually have findings — avoids a second full traversal
         # and prevents loading the entire repo into memory at once.
         file_paths_with_findings = {f.get('path') for f in base_findings if f.get('path')}
+        from credscan.file_cache import read_text
         file_contents = {}
         for file_path in file_paths_with_findings:
-            try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    file_contents[file_path] = f.read()
-            except Exception as e:
-                logger.debug(f"Could not read {file_path} for context analysis: {e}")
-                file_contents[file_path] = ""
+            content = read_text(file_path)
+            if content is None:
+                logger.debug(f"Could not read {file_path} for context analysis")
+            file_contents[file_path] = content or ""
         
         # Analyze and enhance each finding
         for finding in base_findings:

@@ -372,14 +372,16 @@ class EnhancedEntropyEngine:
         entropy_findings = []
         files_to_scan = self.base_engine.find_files()
         
+        from credscan.file_cache import read_text
         for file_path in files_to_scan:
             try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                
+                content = read_text(file_path)
+                if content is None:
+                    continue
+
                 file_findings = self.entropy_analyzer.analyze_content(content, file_path)
                 entropy_findings.extend(file_findings)
-                
+
             except Exception as e:
                 logger.debug(f"Error scanning {file_path} with entropy analyzer: {e}")
                 continue
@@ -432,11 +434,13 @@ class EnhancedEntropyEngine:
         
         # Add entropy analysis
         try:
-            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-            
+            from credscan.file_cache import read_text
+            content = read_text(filepath)
+            if content is None:
+                return base_findings
+
             entropy_findings = self.entropy_analyzer.analyze_content(content, filepath)
-            
+
             # Combine and deduplicate
             all_findings = base_findings + entropy_findings
             return self._deduplicate_findings(all_findings)
