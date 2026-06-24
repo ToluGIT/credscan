@@ -77,6 +77,18 @@ class TestFindingShape:
         assert all("AKIAY2K7MNQ4RST6UVWX" not in ln for ln in lines)
 
 
+class TestScopeCap:
+    def test_oversized_scan_errors_not_hangs(self, client, monkeypatch):
+        # Lower the cap so a normal directory trips it, and confirm the scan
+        # ends with an error verdict rather than hanging the server.
+        import credscan.gui.server as srv
+        monkeypatch.setattr(srv, "_MAX_GUI_FILES", 1)
+        jid, lines = _run_scan_to_completion(client, path="src")
+        data = client.get(f"/api/scan/{jid}/findings").json()
+        assert data["status"] == "error"
+        assert any("scope too large" in ln for ln in lines)
+
+
 class TestFrontendServed:
     def test_index_served(self, client):
         r = client.get("/")

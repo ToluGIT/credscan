@@ -40,6 +40,14 @@ from credscan.remediation import remediation_for
 
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
+# Cap how many files a single GUI scan will process. A whole-monorepo scan
+# belongs on the CLI; in the browser it would tie up the server with no
+# feedback. Oversized scans are rejected with a clear message rather than hung.
+_MAX_GUI_FILES = 5000
+# Keep only the most recent N jobs so a long-lived server does not grow
+# unbounded.
+_MAX_JOBS = 50
+
 
 @dataclass
 class ScanJob:
@@ -116,7 +124,22 @@ def create_app() -> "FastAPI":
             job.lines.put("initializing engine ...")
 
             engine = build_scan_engine(config)
-            job.lines.put("scanning ...")
+
+            # Enforce the scope cap before scanning so a huge tree cannot hang
+            # the server. find_files() is a cheap directory walk.
+            try:
+                planned = engine.find_files()
+            except Exception:
+                planned = []
+            if len(planned) > _MAX_GUI_FILES:
+                msg = (f"scope too large: {len(planned)} files "
+                       f"(GUI limit {_MAX_GUI_FILES}). Narrow --path or use the CLI.")
+                job.lines.put(f"error: {msg}")
+                job.error = msg
+                job.status = "error"
+                return
+
+            job.lines.put(f"scanning {len(planned)} files ...")
             findings = engine.scan()
 
             job.files_found = getattr(engine, "files_found", 0)
@@ -153,6 +176,10 @@ def create_app() -> "FastAPI":
         options = req.model_dump() if hasattr(req, "model_dump") else req.dict()
         job = ScanJob(id=uuid.uuid4().hex[:12], path=path, options=options)
         jobs[job.id] = job
+        # Evict oldest jobs so a long-lived server does not grow unbounded.
+        if len(jobs) > _MAX_JOBS:
+            for old in list(jobs)[: len(jobs) - _MAX_JOBS]:
+                jobs.pop(old, None)
         threading.Thread(target=_run_scan, args=(job,), daemon=True).start()
         return {"id": job.id, "path": path}
 
@@ -171,8 +198,10 @@ def create_app() -> "FastAPI":
                 if line == "__END__":
                     yield f"event: done\ndata: {job.status}\n\n"
                     break
-                # SSE data lines must not contain raw newlines.
-                yield f"data: {line}\n\n"
+                # SSE is newline-delimited: collapse any embedded newlines so a
+                # single logical line stays a single event.
+                safe = str(line).replace("\r", " ").replace("\n", " ")
+                yield f"data: {safe}\n\n"
 
         return StreamingResponse(event_gen(), media_type="text/event-stream")
 
@@ -223,6 +252,12 @@ def main():
         import uvicorn
     except ImportError:
         raise SystemExit("The GUI requires: pip install 'credscan[gui]'")
+
+    if args.host not in ("127.0.0.1", "localhost"):
+        print(f"WARNING: binding to {args.host} exposes the scanner on the "
+              f"network with no authentication. Findings (masked) and scan "
+              f"control would be reachable by others. Use 127.0.0.1 unless you "
+              f"are certain.")
 
     print(f"CredScan GUI -> http://{args.host}:{args.port}")
     uvicorn.run(create_app(), host=args.host, port=args.port, log_level="info")
