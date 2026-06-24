@@ -2,35 +2,38 @@
 Robust resolution of the bundled `config/` directory.
 
 The config files (comprehensive_patterns.json, context_patterns.json,
-known_test_credentials.json, compliance_map.json, ...) live in a top-level
-`config/` directory. Locating them via a fixed `../../../config` relative path
-only works for a source/editable checkout; a packaged or containerized install
-puts the code elsewhere. This resolver tries, in order:
+known_test_credentials.json, supported_extensions.json, wordlists/, ...) ship
+INSIDE the package at `credscan/config/`, so they are present in every install
+path: editable, wheel, sdist, and container. Resolution order:
 
-  1. $CREDSCAN_CONFIG_DIR (explicit override; the Docker image sets this),
-  2. the source-tree location relative to this file,
-  3. the current working directory's `config/`.
+  1. $CREDSCAN_CONFIG_DIR (explicit override),
+  2. the in-package `credscan/config/` directory (the normal case),
+  3. a legacy repo-root `config/` (older source checkouts),
+  4. `<cwd>/config`.
 
-It returns the first directory that exists, or the source-tree path as a last
-resort so callers still get a usable (if absent) path to probe.
+Returns the first directory that exists, or the in-package path as a last
+resort so callers still get a usable path to probe.
 """
 import os
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-# src/credscan/ -> repo root is two levels up; config/ sits beside src/.
-_SOURCE_TREE_CONFIG = os.path.normpath(os.path.join(_THIS_DIR, "..", "..", "config"))
+# Shipped inside the package: credscan/config/
+_PACKAGE_CONFIG = os.path.join(_THIS_DIR, "config")
+# Legacy location for old source checkouts: <repo>/config (src/credscan -> ../../config)
+_LEGACY_CONFIG = os.path.normpath(os.path.join(_THIS_DIR, "..", "..", "config"))
 
 
 def get_config_dir() -> str:
     """Return the best available config directory path."""
     env = os.environ.get("CREDSCAN_CONFIG_DIR")
     candidates = [env] if env else []
-    candidates.append(_SOURCE_TREE_CONFIG)
+    candidates.append(_PACKAGE_CONFIG)
+    candidates.append(_LEGACY_CONFIG)
     candidates.append(os.path.join(os.getcwd(), "config"))
     for path in candidates:
         if path and os.path.isdir(path):
             return path
-    return _SOURCE_TREE_CONFIG
+    return _PACKAGE_CONFIG
 
 
 def config_file(name: str) -> str:

@@ -74,9 +74,9 @@ class CodeParser(BaseParser):
         
         # Try to load from supported_extensions.json
         try:
-            config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
-            extensions_file = os.path.join(config_dir, 'supported_extensions.json')
-            
+            from credscan.config_paths import config_file
+            extensions_file = config_file('supported_extensions.json')
+
             if os.path.exists(extensions_file):
                 with open(extensions_file, 'r') as f:
                     data = json.load(f)

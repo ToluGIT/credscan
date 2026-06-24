@@ -44,8 +44,8 @@ class WebScanner:
         ]
         
         try:
-            config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
-            patterns_file = os.path.join(config_dir, 'comprehensive_patterns.json')
+            from credscan.config_paths import config_file
+            patterns_file = config_file('comprehensive_patterns.json')
             
             if os.path.exists(patterns_file):
                 with open(patterns_file, 'r') as f:
@@ -68,8 +68,8 @@ class WebScanner:
     def _load_pattern_categories(self) -> Dict[str, str]:
         """Load pattern categories for classification."""
         try:
-            config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
-            patterns_file = os.path.join(config_dir, 'comprehensive_patterns.json')
+            from credscan.config_paths import config_file
+            patterns_file = config_file('comprehensive_patterns.json')
             
             if os.path.exists(patterns_file):
                 with open(patterns_file, 'r') as f:

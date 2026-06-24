@@ -38,8 +38,9 @@ class WebCrawler:
         ]
         
         all_words = []
-        config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config', 'wordlists')
-        
+        from credscan.config_paths import get_config_dir
+        config_dir = os.path.join(get_config_dir(), 'wordlists')
+
         for wordlist_file in wordlist_files:
             filepath = os.path.join(config_dir, wordlist_file)
             try:
@@ -65,8 +66,8 @@ class WebCrawler:
     def _load_extensions(self) -> List[str]:
         """Load supported file extensions."""
         try:
-            config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
-            extensions_file = os.path.join(config_dir, 'supported_extensions.json')
+            from credscan.config_paths import config_file
+            extensions_file = config_file('supported_extensions.json')
             
             if os.path.exists(extensions_file):
                 with open(extensions_file, 'r') as f:

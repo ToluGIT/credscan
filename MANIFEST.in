@@ -1,4 +1,4 @@
 include LICENSE README.md
-recursive-include config *.yaml *.json
+recursive-include src/credscan/config *
 recursive-include src *.py
 

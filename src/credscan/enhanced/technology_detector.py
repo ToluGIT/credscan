@@ -26,9 +26,9 @@ class TechnologyDetector:
     def _load_technology_patterns(self) -> Dict[str, List[str]]:
         """Load technology-specific credential patterns."""
         try:
-            config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
-            patterns_file = os.path.join(config_dir, 'technology_patterns.json')
-            
+            from credscan.config_paths import config_file
+            patterns_file = config_file('technology_patterns.json')
+
             if os.path.exists(patterns_file):
                 with open(patterns_file, 'r') as f:
                     return json.load(f)
@@ -40,9 +40,9 @@ class TechnologyDetector:
     def _load_technology_files(self) -> Dict[str, List[str]]:
         """Load technology-specific file patterns."""
         try:
-            config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
-            files_file = os.path.join(config_dir, 'technology_files.json')
-            
+            from credscan.config_paths import config_file
+            files_file = config_file('technology_files.json')
+
             if os.path.exists(files_file):
                 with open(files_file, 'r') as f:
                     return json.load(f)

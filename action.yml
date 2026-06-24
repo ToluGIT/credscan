@@ -46,26 +46,37 @@ runs:
 
     - name: Install CredScan
       shell: bash
-      run: pip install -e "${{ github.action_path }}"
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: pip install "$ACTION_PATH"
 
     - name: Run CredScan
       id: scan
       shell: bash
+      # Inputs are passed through the environment, never interpolated directly
+      # into the shell, to avoid command injection from untrusted input values.
+      env:
+        SCAN_PATH: ${{ inputs.path }}
+        SCAN_OUTPUT: ${{ inputs.output }}
+        SCAN_OUTPUT_DIR: ${{ inputs.output-dir }}
+        SCAN_MIN_CONFIDENCE: ${{ inputs.min-confidence }}
+        SCAN_EXCLUDE: ${{ inputs.exclude }}
+        FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
       run: |
         set +e
         credscan \
-          --path "${{ inputs.path }}" \
-          --output "${{ inputs.output }}" \
-          --output-dir "${{ inputs.output-dir }}" \
-          --min-confidence "${{ inputs.min-confidence }}" \
-          --exclude "${{ inputs.exclude }}" \
+          --path "$SCAN_PATH" \
+          --output "$SCAN_OUTPUT" \
+          --output-dir "$SCAN_OUTPUT_DIR" \
+          --min-confidence "$SCAN_MIN_CONFIDENCE" \
+          --exclude "$SCAN_EXCLUDE" \
           --no-color
         code=$?
 
-        sarif=$(ls "${{ inputs.output-dir }}"/*.sarif 2>/dev/null | head -1 || true)
+        sarif=$(ls "$SCAN_OUTPUT_DIR"/*.sarif 2>/dev/null | head -1 || true)
         echo "sarif-file=$sarif" >> "$GITHUB_OUTPUT"
 
-        if [ "${{ inputs.fail-on-findings }}" = "true" ]; then
+        if [ "$FAIL_ON_FINDINGS" = "true" ]; then
           exit $code
         fi
         exit 0

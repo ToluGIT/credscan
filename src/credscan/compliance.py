@@ -8,9 +8,9 @@ not name-dropping standards in prose.
 
 Controls referenced:
   - CWE-798 / CWE-259 / CWE-321  (weakness taxonomy)
-  - NIST SP 800-53 IA-5           (Authenticator Management)
-  - PCI-DSS v4.0 8.3.x / 6.3.x    (no hard-coded credentials; secure development)
-  - OWASP ASVS V2 / V6            (authentication / stored secrets)
+  - NIST SP 800-53 IA-5(7)        (no embedded unencrypted static authenticators)
+  - PCI-DSS v4.0 8.6.2 / 6.3.1    (no hard-coded account credentials; secure dev)
+  - OWASP ASVS V2.10              (service authentication secrets not in source)
 """
 from typing import Any, Dict, List
 
@@ -19,7 +19,7 @@ from credscan.remediation import _key_for_finding  # reuse the same classifier
 # Controls that apply to every hard-coded credential finding.
 _BASE_CONTROLS = [
     "NIST 800-53 IA-5(7)",   # no embedded unencrypted static authenticators
-    "PCI-DSS 8.3.1",          # strong auth / no hard-coded credentials
+    "PCI-DSS 8.6.2",          # do not hard-code passwords/passphrases for accounts
     "OWASP ASVS V2.10",       # service authentication secrets not in source
 ]
 
