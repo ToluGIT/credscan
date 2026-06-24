@@ -16,7 +16,8 @@
     {"file": "leaky/private_key.pem", "line": 1, "type": "private_key"},
     {"file": "leaky/more_tokens.env", "line": 4, "type": "openai_api_key"},
     {"file": "leaky/more_tokens.env", "line": 5, "type": "huggingface_token"},
-    {"file": "leaky/more_tokens.env", "line": 6, "type": "jwt"}
+    {"file": "leaky/more_tokens.env", "line": 6, "type": "jwt"},
+    {"file": "leaky/more_tokens.env", "line": 8, "type": "generic_secret"}
   ],
   "clean_files": [
     "clean/config_safe.py",

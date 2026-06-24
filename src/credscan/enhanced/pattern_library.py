@@ -127,13 +127,17 @@ def load_default_patterns() -> PatternLibrary:
                     kw = re.escape(pattern_keyword)
                     is_generic = pattern_keyword.lower() in generic_keywords
                     if is_generic:
-                        # Require a quoted value, word-boundary on the keyword,
-                        # and a value that is not a code expression (no spaces,
-                        # parens, dots, brackets) and is long enough to be a
-                        # secret rather than a flag like "yes"/"true".
+                        # Generic single words match real code (`key = item.get(
+                        # 'key')`) if used naively. Accept either a QUOTED value
+                        # (>=8 chars) or an UNQUOTED value (>=12 chars) so common
+                        # .env/YAML/shell assignments like API_SECRET=value are
+                        # caught. Code expressions and references that slip
+                        # through are removed downstream by the secret-reference
+                        # classifier in the deduplicator.
                         pattern = (
                             rf"(?i)\b{kw}\b\s*[:=]\s*"
-                            rf"['\"]([A-Za-z0-9_\-./+=]{{8,}})['\"]"
+                            rf"(?:['\"]([A-Za-z0-9_\-./+=]{{8,}})['\"]"
+                            rf"|([A-Za-z0-9_\-./+=]{{12,}}))"
                         )
                     else:
                         # Specific keyword: quoted-or-unquoted but still require a

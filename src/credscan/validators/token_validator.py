@@ -120,8 +120,19 @@ class TokenValidator:
         if resp.status_code == 200:
             scope = resp.json().get("scope", "")
             return {"valid": True, "identity": f"gcp token (scope: {scope[:40]})"}
+        # tokeninfo returns 400 with error_description 'invalid_token' for a
+        # genuinely bad/expired token, but 400 can also mean a malformed
+        # request. Only treat it as INVALID when the body confirms an invalid
+        # token; otherwise it is unverifiable.
         if resp.status_code in (400, 401):
-            return {"valid": False, "error": f"HTTP {resp.status_code} (invalid/expired)"}
+            try:
+                body = resp.json()
+            except Exception:
+                body = {}
+            desc = f"{body.get('error', '')} {body.get('error_description', '')}".lower()
+            if resp.status_code == 401 or "invalid" in desc or "expired" in desc:
+                return {"valid": False, "error": f"HTTP {resp.status_code} (invalid/expired)"}
+            return {"valid": None, "error": f"HTTP {resp.status_code} (indeterminate)"}
         return {"valid": None, "error": f"HTTP {resp.status_code}"}
 
     @property
@@ -170,12 +181,12 @@ class TokenValidator:
 
             result = self.validate(token)
             if result["valid"] is True:
-                finding["verification"] = f"ACTIVE — {result.get('identity', provider)}"
+                finding["verification"] = f"ACTIVE: {result.get('identity', provider)}"
                 finding["severity"] = "critical"
             elif result["valid"] is False:
-                finding["verification"] = f"INVALID — {result.get('error', 'revoked')}"
+                finding["verification"] = f"INVALID: {result.get('error', 'revoked')}"
             else:
-                finding["verification"] = f"UNVERIFIED — {result.get('error', 'unknown')}"
+                finding["verification"] = f"UNVERIFIED: {result.get('error', 'unknown')}"
         return findings
 
     @staticmethod

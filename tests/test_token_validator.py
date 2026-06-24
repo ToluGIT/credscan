@@ -83,6 +83,19 @@ class TestVerdictMapping:
         assert result["valid"] is None
         assert result["provider"] is None
 
+    def test_gcp_400_without_invalid_body_is_unverified(self, validator):
+        # A bare HTTP 400 (no 'invalid' in the body) must NOT be read as INVALID.
+        requests = self._mock_requests(400, {"error": "bad_request"})
+        with patch.object(validator, "_get_requests", return_value=requests):
+            result = validator.validate("ya29.A0ARrdaM-sometoken")
+        assert result["valid"] is None
+
+    def test_gcp_400_with_invalid_token_body_is_invalid(self, validator):
+        requests = self._mock_requests(400, {"error_description": "Invalid Value"})
+        with patch.object(validator, "_get_requests", return_value=requests):
+            result = validator.validate("ya29.A0ARrdaM-sometoken")
+        assert result["valid"] is False
+
 
 class TestEthicsConstraints:
     def test_github_uses_readonly_user_endpoint(self, validator):
