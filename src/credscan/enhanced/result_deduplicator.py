@@ -40,15 +40,16 @@ class ResultDeduplicator:
             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
         }
         
-        # Test patterns to identify likely test credentials
+        # Test patterns to identify likely test credentials. These are matched
+        # with re.search against the finding value (often a full line), so they
+        # are deliberately not ^-anchored unless position matters.
         self.test_patterns = [
             r'(?i)(test|dummy|example|sample|fake|mock)',
-            r'(?i)(placeholder|changeme|default)',
-            r'(?i)^replace.{0,10}(with|by|_)',   # REPLACE_WITH_ENV_VAR
-            r'(?i)^change.?me',                   # CHANGE_ME, changeme
-            r'(?i)^your[_\-]',                    # your_api_key_here
-            r'(?i)^<[^>]+>$',                     # <placeholder>
-            r'(?i)^os\.environ',                  # os.environ["KEY"] — not a value
+            r'(?i)(placeholder|changeme|change[_\-]?me)',
+            r'(?i)replace[_\-\s]?with',           # REPLACE_WITH_YOUR_SECRET_KEY
+            r'(?i)your[_\-](api|secret|access|key|token|password)',  # your_api_key
+            r'(?i)<[^>]+>',                       # <placeholder>
+            r'(?i)os\.environ',                   # os.environ["KEY"] — not a value
             r'123+$',  # Ends with repeated numbers
             r'^(admin|root|user)123*$',
             r'(?i)^.*test.*$',
@@ -190,16 +191,40 @@ class ResultDeduplicator:
         value = finding.get('value', '')
         variable = finding.get('variable', '')
         path = finding.get('path', '').lower()
-        
+
         indicators = []
         confidence = 0.0
-        
+
+        # A reference to a secret (env var, template var, or a bare constant
+        # reference) is not itself a secret. These are the dominant false
+        # positive class for keyword-based patterns, so classify them out with
+        # high confidence.
+        if self._is_secret_reference(value):
+            indicators.append('secret_reference_not_literal')
+            confidence += 0.9
+
         # Check against known test credentials
         clean_value = re.sub(r'["\s=:]+', '', value)
         if clean_value in self.known_test_credentials:
             indicators.append('known_test_credential')
             confidence += 0.9
         
+        # Unambiguous placeholders ("replace with", "your_api_key",
+        # "changeme", "<placeholder>") are definitively not secrets -- weight
+        # them strongly so a single match is decisive.
+        placeholder_patterns = [
+            r'(?i)replace[_\-\s]?with',
+            r'(?i)your[_\-](api|secret|access|key|token|password)',
+            r'(?i)change[_\-]?me',
+            r'(?i)placeholder',
+            r'(?i)<[^>]+>',
+        ]
+        for pat in placeholder_patterns:
+            if re.search(pat, value):
+                indicators.append('placeholder_value')
+                confidence += 0.9
+                break
+
         # Check value patterns
         for pattern in self.compiled_test_patterns:
             if pattern.search(value):
@@ -240,6 +265,63 @@ class ResultDeduplicator:
             'indicators': indicators
         }
     
+    def _is_secret_reference(self, value: str) -> bool:
+        """Return True if the value is a reference to a secret, not a literal.
+
+        Covers the dominant false-positive classes for keyword-based patterns:
+        environment-variable reads, shell/CI template variables, and assignments
+        whose right-hand side is another identifier (a constant reference) rather
+        than a quoted literal credential.
+        """
+        if not value:
+            return False
+
+        # Isolate the right-hand side of a key: value or key = value pair.
+        rhs = value
+        m = re.search(r'[:=]\s*(.+)$', value)
+        if m:
+            rhs = m.group(1).strip()
+        # Drop trailing inline comments.
+        rhs = re.split(r'\s+#', rhs)[0].strip()
+
+        # An env/template reference is a non-literal whether or not it is quoted
+        # (e.g. password: "${DB_PASS}" or key = os.environ["X"]).
+        reference_patterns = [
+            r'\$\{[^}]+\}',                          # ${VAR}, ${{ secrets.X }}
+            r'\$[A-Z_][A-Z0-9_]*$',                  # $VAR
+            r'os\.environ',                          # os.environ[...] / .get(...)
+            r'os\.getenv',                           # os.getenv(...)
+            r'process\.env\.',                       # Node process.env.X
+            r'System\.getenv',                       # Java
+            r'ENV\[',                                # Ruby ENV['X']
+            r'config\.get\(',                        # config.get('x')
+            r'secrets\.',                            # GitHub Actions secrets.X
+            r'vars\.',                               # CI vars.X
+        ]
+        for pat in reference_patterns:
+            if re.search(pat, rhs, re.IGNORECASE):
+                return True
+
+        # A QUOTED right-hand side is a literal value, not a reference -- do not
+        # classify it here (its content is judged elsewhere).
+        is_quoted = bool(re.match(r'''^["']''', rhs))
+        if is_quoted:
+            return False
+
+        bare = rhs.rstrip(',)')
+        # A value carrying a known provider prefix is a real secret, never a
+        # variable reference, even though it is unquoted (common in .env files).
+        if re.match(r'(?i)(AKIA|ASIA|hf_|sk-|sk_|rk_|ghp_|gho_|ghu_|ghs_|ghr_|xox[baprs]-|AIza|glpat-|eyJ)', bare):
+            return False
+        # An UNQUOTED all-caps/underscore identifier (e.g.
+        # aws_access_key_id=AWS_ACCESS_KEY_ID, or =MY_CONSTANT) is a variable
+        # reference, not a hardcoded literal. Require it to look like an
+        # identifier WITHOUT the digit/mixed-case entropy of a real token.
+        if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', bare) and not re.search(r'[0-9]', bare):
+            return True
+
+        return False
+
     def _is_low_entropy(self, value: str) -> bool:
         """Check if a value has low entropy (suggesting test data)."""
         if len(value) < 8:

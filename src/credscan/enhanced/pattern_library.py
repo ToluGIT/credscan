@@ -12,26 +12,107 @@ import re
 from .pattern_structure import PatternLibrary, PatternCategory, CredentialPattern
 
 
+def _add_structural_patterns(library: "PatternLibrary") -> None:
+    """Add high-value patterns that keyword-based generation cannot express.
+
+    The comprehensive_patterns.json file produces only `keyword[:=]value`
+    regexes. Structural secrets (PEM key armor, JWTs, provider-prefixed keys)
+    have no `key = value` shape, so they must be added explicitly or they are
+    silently missed. These run regardless of whether the comprehensive file is
+    present.
+    """
+    structural = PatternCategory(
+        name="structural_high_value",
+        description="Structural secrets identified by format, not keyword",
+    )
+
+    structural.add_pattern(CredentialPattern(
+        name="Private Key",
+        pattern=r"-----BEGIN ((EC|PGP|DSA|RSA|OPENSSH) )?PRIVATE KEY( BLOCK)?-----",
+        description="Private key in PEM armor (RSA/EC/DSA/OPENSSH/PGP)",
+        severity="critical",
+        confidence=0.99,
+    ))
+    structural.add_pattern(CredentialPattern(
+        name="AWS Access Key ID",
+        pattern=r"(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}",
+        description="AWS Access Key ID (provider-prefixed)",
+        severity="high",
+        confidence=0.9,
+    ))
+    structural.add_pattern(CredentialPattern(
+        name="JWT",
+        pattern=r"eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.[A-Za-z0-9-_.+/=]+",
+        description="JSON Web Token",
+        severity="high",
+        confidence=0.8,
+    ))
+    structural.add_pattern(CredentialPattern(
+        name="Google API Key",
+        pattern=r"AIza[0-9A-Za-z\-_]{35}",
+        description="Google API key (provider-prefixed)",
+        severity="high",
+        confidence=0.9,
+    ))
+    structural.add_pattern(CredentialPattern(
+        name="Slack Token",
+        pattern=r"xox[baprs]-[0-9A-Za-z-]{10,48}",
+        description="Slack token (provider-prefixed)",
+        severity="high",
+        confidence=0.9,
+    ))
+    structural.add_pattern(CredentialPattern(
+        name="Stripe Secret Key",
+        pattern=r"(?:r|s)k_live_[0-9a-zA-Z]{20,}",
+        description="Stripe live secret key (provider-prefixed)",
+        severity="critical",
+        confidence=0.95,
+    ))
+    structural.add_pattern(CredentialPattern(
+        name="GitHub Token",
+        pattern=r"gh[pousr]_[0-9a-zA-Z]{30,40}",
+        description="GitHub personal access / OAuth token (provider-prefixed)",
+        severity="high",
+        confidence=0.9,
+    ))
+    structural.add_pattern(CredentialPattern(
+        name="OpenAI API Key",
+        pattern=r"sk-(?:proj-)?[A-Za-z0-9_-]{20,}",
+        description="OpenAI API key (provider-prefixed)",
+        severity="high",
+        confidence=0.9,
+    ))
+    structural.add_pattern(CredentialPattern(
+        name="Hugging Face Token",
+        pattern=r"hf_[A-Za-z0-9]{30,40}",
+        description="Hugging Face access token (provider-prefixed)",
+        severity="high",
+        confidence=0.9,
+    ))
+
+    library.add_category(structural)
+
+
 def load_default_patterns() -> PatternLibrary:
     """Load the default credential patterns."""
     library = PatternLibrary()
-    
+
     # First try to load from comprehensive patterns file
     try:
         config_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
         comprehensive_patterns_file = os.path.join(config_dir, 'comprehensive_patterns.json')
-        
+
         if os.path.exists(comprehensive_patterns_file):
             with open(comprehensive_patterns_file, 'r') as f:
                 comprehensive_data = json.load(f)
-                
+
             # Convert comprehensive patterns to enhanced patterns
             for category_name, pattern_list in comprehensive_data.items():
                 category = PatternCategory(
                     name=category_name.lower().replace(' ', '_').replace('/', '_'),
                     description=f"{category_name} credentials and tokens"
                 )
-                
+
                 for pattern_keyword in pattern_list:
                     # Create regex patterns for each keyword
                     category.add_pattern(CredentialPattern(
@@ -41,12 +122,17 @@ def load_default_patterns() -> PatternLibrary:
                         severity="high" if any(x in pattern_keyword.lower() for x in ['secret', 'key', 'token', 'password']) else "medium",
                         confidence=0.8
                     ))
-                
+
                 library.add_category(category)
-                
+
+            # Structural secrets (PEM keys, JWTs, provider-prefixed keys) cannot
+            # be expressed as keyword=value, so add them explicitly. Without this
+            # the comprehensive file silently degrades detection.
+            _add_structural_patterns(library)
+
             # Return the comprehensive pattern library
             return library
-            
+
     except Exception as e:
         print(f"Warning: Could not load comprehensive patterns: {e}")
         # Fall back to hardcoded patterns below

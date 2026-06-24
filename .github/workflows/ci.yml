@@ -37,6 +37,26 @@ jobs:
           file: ./coverage.xml
           fail_ci_if_error: false
 
+  benchmark:
+    name: Detection Benchmark
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install credscan
+        run: pip install -e .
+
+      - name: Run benchmark (fail if F1 regresses)
+        run: |
+          PYTHONPATH=src python benchmarks/run.py --fail-under-f1 0.90
+
   self-scan:
     name: Self-Scan (dogfood)
     runs-on: ubuntu-latest
@@ -55,8 +75,9 @@ jobs:
 
       - name: Scan this repository for leaked credentials
         run: |
+          # Exclude directories that contain synthetic test secrets by design.
           credscan --path . \
-            --exclude ".git/,.github/,tests/testdata/,*.pyc" \
+            --exclude ".git/,.github/,tests/,benchmarks/,demo/,*.pyc" \
             --output json \
             --output-dir /tmp/scan-results \
             --min-confidence 0.5 || true

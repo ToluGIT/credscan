@@ -287,18 +287,18 @@ class TestConfigIntegration(unittest.TestCase):
             os.unlink(json_path)
             os.unlink(yaml_path)
     
-    @patch('credscan.enhanced.rule_engine_integration.EnhancedScanEngine')
+    @patch('credscan.enhanced.config_integration.EnhancedScanEngine')
     def test_create_enhanced_engine(self, mock_engine_class):
         """Test that an enhanced engine can be created from config."""
         mock_engine = MagicMock()
         mock_engine_class.return_value = mock_engine
-        
+
         config_data = get_example_config()
         config = EnhancedConfig(config_data)
-        
+
         engine = config.create_enhanced_engine()
-        
-        # The engine should have been created
+
+        # The engine should have been created with the config data
         mock_engine_class.assert_called_once_with(config_data)
         
         # Rules should have been registered

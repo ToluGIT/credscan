@@ -16,7 +16,8 @@ cd credscan
 pip install -e .
 ```
 
-Requires Python 3.9+. For AWS live validation, also install `boto3`.
+Requires Python 3.9+. Optional extras: `pip install -e ".[aws]"` for live AWS
+key validation, `".[reports]"` for Excel/PDF output.
 
 ---
 
@@ -30,6 +31,36 @@ Most credential scanners apply a regex pattern and report a match. CredScan runs
 4. **Confidence scoring**: a weighted score combining pattern strength, entropy, context, and technology signals produces a final confidence value; low-confidence findings are filtered before output
 
 The aim is high signal with minimal noise, so findings reported at default settings are worth investigating.
+
+---
+
+## Measured quality
+
+Accuracy claims are backed by a reproducible benchmark, not asserted. Against
+the bundled labeled corpus (16 planted secrets across 6 files, plus 4 clean
+files of decoys: env references, placeholders, hashes, UUIDs, base64 config):
+
+| Metric | Score |
+|--------|-------|
+| Precision | 1.00 |
+| Recall | 1.00 |
+| F1 | 1.00 |
+
+```bash
+PYTHONPATH=src python benchmarks/run.py
+```
+
+This corpus is small and curated, so a perfect score demonstrates the documented
+detectors and false-positive guards work on representative inputs. It is not a
+claim about precision on arbitrary repositories, which would need a much larger
+independent dataset. The benchmark runs in CI as a regression gate
+(`--fail-under-f1 0.90`), and the harness is described in
+[benchmarks/README.md](benchmarks/README.md).
+
+Test coverage is currently 27% (`pytest --cov`); the detection pipeline,
+parsers, and SARIF output are well covered, while the git-history, web, and
+binary subsystems are not yet unit-tested. See [SECURITY.md](SECURITY.md) for
+the tool's own threat model.
 
 ---
 

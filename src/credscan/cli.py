@@ -25,7 +25,8 @@ from credscan.hooks import PreCommitScanner, install_hook
 from credscan.history.scanner import HistoryScanner
 from credscan.enhanced.config_integration import EnhancedConfig
 from credscan.enhanced.pattern_library import load_default_patterns
-from credscan.web import WebScanner, WebCrawler
+# Web scanning (WebScanner/WebCrawler) is imported lazily inside the --url
+# branch so the core scanner does not hard-require `requests` at startup.
 
 # Set up logging
 logging.basicConfig(
@@ -434,7 +435,14 @@ BASELINE_FILE=".credscan-baseline.json"
     # Handle web scanning if URL is provided
     if hasattr(args, 'url') and args.url:
         logger.info(f"Starting web scan on {args.url}")
-        
+
+        try:
+            from credscan.web import WebScanner, WebCrawler
+        except ImportError:
+            logger.error("Web scanning requires the 'requests' package. "
+                         "Install it with: pip install requests")
+            sys.exit(2)
+
         # Initialize web scanner and crawler
         web_scanner = WebScanner(config)
         

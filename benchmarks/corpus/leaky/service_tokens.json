@@ -1,0 +1,9 @@
+{
+  "comment": "Synthetic fixture: third-party service tokens hardcoded in config",
+  "github_token": "ghp_R7y2Kx4pQn8vZ3wBfCgHjLmNt6RsUuVwXy1",
+  "slack_bot_token": "xoxb-742318965012-742318965012-Kp9RxMnVzQtWbFcGhJd4Lp2X",
+  "stripe_secret_key": "sk_live_7mNk3pQr5tVwXzBfCgHjKlMn",
+  "google_api_key": "AIzaSyB7x4Kp2Qn8vZ3wBfCgHjLmNt6RsUuVwXk",
+  "internal_service_url": "https://api.internal.example.com/v2",
+  "max_retries": 3
+}

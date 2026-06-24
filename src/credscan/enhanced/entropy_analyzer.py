@@ -134,7 +134,33 @@ class EnhancedEntropyAnalyzer:
     def is_false_positive(self, value: str, context: str = '') -> bool:
         """Check if a value is likely a false positive."""
         value_lower = value.lower()
-        
+
+        # Known non-secret high-entropy formats. These are the classic entropy
+        # false positives: UUIDs, content hashes, and integrity digests are
+        # random-looking but carry no credential value.
+        stripped = value.strip().strip('\'"')
+        # UUID (any version)
+        if re.fullmatch(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', stripped):
+            return True
+        # Named-algorithm integrity hash, e.g. sha256-..., sha384-..., md5-...
+        if re.match(r'(?i)^(sha(1|224|256|384|512)|md5)[-:]', stripped):
+            return True
+        # A bare hex digest of a standard hash width (md5/sha1/sha256) with no
+        # credential keyword context is far more likely a checksum than a secret.
+        if re.fullmatch(r'[0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{64}', stripped):
+            return True
+        # Base64 that decodes to readable JSON/text config (e.g.
+        # eyJ0aGVtZSI6...) is an encoded config blob, not a secret. A 2-segment
+        # "eyJ" string is base64 JSON, not a 3-segment JWT.
+        if stripped.startswith('eyJ') and stripped.count('.') < 2:
+            try:
+                decoded = base64.b64decode(stripped + '===', validate=False)
+                text = decoded.decode('utf-8', errors='strict')
+                if text.lstrip().startswith(('{', '[')):
+                    return True
+            except Exception:
+                pass
+
         # Check common false positive words
         if value_lower in self.false_positive_patterns['common_words']:
             return True

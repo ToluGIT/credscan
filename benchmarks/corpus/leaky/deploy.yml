@@ -1,0 +1,24 @@
+# Synthetic fixture: hardcoded secrets in a GitHub Actions workflow.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        env:
+          AWS_ACCESS_KEY_ID: "AKIAW2K7MNQ4RST6PVXL"
+          DATABASE_PASSWORD: "Ci_Deploy_Pass_K9p2Rx"
+          DEPLOY_TOKEN: "glpat-R7y2Kx4pQn8vZ3wBfCgH"
+        run: ./deploy.sh
+
+      - name: Notify
+        # Decoy: reference to a managed secret, not a literal (true negative)
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: ./notify.sh

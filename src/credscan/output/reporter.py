@@ -2,6 +2,7 @@
 Reporting system for credential detection results.
 """
 import html
+import hashlib
 import json
 import os
 import datetime
@@ -67,6 +68,16 @@ class Reporter:
             findings: List of detection findings
             statistics: Dictionary of scan statistics
         """
+        # Filter out test/example credentials consistently across ALL formats
+        # (not just console). Findings classified as test credentials are
+        # suppressed unless the user explicitly asks to see them. This keeps
+        # JSON/SARIF/HTML output aligned with the console and with the
+        # precision the tool reports.
+        if not self.config.get('show_test_credentials', False):
+            kept = [f for f in findings if not f.get('is_test_credential', False)]
+            statistics = {**statistics, 'test_filtered_count': len(findings) - len(kept)}
+            findings = kept
+
         for output_format in self.output_formats:
             if output_format == 'console':
                 self.report_console(findings, statistics)
@@ -109,17 +120,12 @@ class Reporter:
             print(f"Credentials found: {c['bold']}{len(findings)}{c['reset']}\n")
 
         
-        # Check if we should show test credentials
-        show_test_creds = self.config.get('show_test_credentials', False)
-        
-        # Filter out test credentials if not requested
-        original_count = len(findings)
-        if not show_test_creds:
-            findings = [f for f in findings if not f.get('is_test_credential', False)]
-            test_filtered = original_count - len(findings)
-            if test_filtered > 0:
-                print(f"{c['dim']}Note: {test_filtered} test/example credentials filtered out (use --show-test-credentials to see them){c['reset']}\n")
-        
+        # Findings are pre-filtered for test/example credentials in report();
+        # surface how many were suppressed.
+        test_filtered = statistics.get('test_filtered_count', 0)
+        if test_filtered > 0:
+            print(f"{c['dim']}Note: {test_filtered} test/example credentials filtered out (use --show-test-credentials to see them){c['reset']}\n")
+
         # Check if we should group by severity
         group_by_severity = self.config.get('group_by_severity', False)
         
@@ -211,7 +217,7 @@ class Reporter:
                         "driver": {
                             "name": "CredScan",
                             "version": "1.0.0",
-                            "informationUri": "https://github.com/yourusername/credscan",
+                            "informationUri": "https://github.com/ToluGIT/credscan",
                             "rules": []
                         }
                     },
@@ -220,41 +226,49 @@ class Reporter:
             ]
         }
         
-        # Collect unique rules
+        # Collect unique rules, tagged with their CWE.
         rules_by_id = {}
         for finding in findings:
             rule_id = finding.get('rule_id', 'unknown')
             if rule_id not in rules_by_id:
+                cwe = self._cwe_for_finding(finding)
+                cwe_num = cwe.split('-')[1]
                 rules_by_id[rule_id] = {
                     "id": rule_id,
+                    "name": finding.get('rule_name', 'Unknown Rule'),
                     "shortDescription": {
                         "text": finding.get('rule_name', 'Unknown Rule')
                     },
                     "fullDescription": {
-                        "text": finding.get('description', '')
+                        "text": finding.get('description', '') or
+                                "Detects potential hard-coded credentials or secrets."
                     },
+                    "helpUri": f"https://cwe.mitre.org/data/definitions/{cwe_num}.html",
                     "help": {
-                        "text": "This rule detects potential credentials or secrets in code."
+                        "text": "Detects hard-coded credentials/secrets. Rotate any confirmed "
+                                "secret and move it to a managed secret store."
                     },
                     "properties": {
-                        "security-severity": self._severity_to_number(finding.get('severity', 'medium'))
+                        "security-severity": str(self._severity_to_number(finding.get('severity', 'medium'))),
+                        "tags": ["security", "secrets", cwe],
+                        "cwe": cwe,
                     }
                 }
-        
+
         # Add rules to SARIF report
         sarif_report["runs"][0]["tool"]["driver"]["rules"] = list(rules_by_id.values())
-        
-        # Add results
+
+        # Add results with stable partial fingerprints for cross-run dedup.
         for finding in findings:
             rule_id = finding.get('rule_id', 'unknown')
             path = finding.get('path', '')
             line = finding.get('line', 0)
-            
+
             result = {
                 "ruleId": rule_id,
                 "level": self._severity_to_level(finding.get('severity', 'medium')),
                 "message": {
-                    "text": finding.get('description', '')
+                    "text": finding.get('description', '') or "Potential hard-coded credential."
                 },
                 "locations": [
                     {
@@ -263,14 +277,20 @@ class Reporter:
                                 "uri": path
                             },
                             "region": {
-                                "startLine": line,
+                                "startLine": line if line else 1,
                                 "startColumn": 1
                             }
                         }
                     }
-                ]
+                ],
+                "partialFingerprints": {
+                    "credscan/v1": self._partial_fingerprint(finding)
+                },
+                "properties": {
+                    "cwe": self._cwe_for_finding(finding),
+                }
             }
-            
+
             sarif_report["runs"][0]["results"].append(result)
         
         # Ensure output directory exists
@@ -300,13 +320,43 @@ class Reporter:
     
     def _severity_to_number(self, severity: str) -> float:
         """Convert severity to a number for SARIF."""
+        if severity in ('critical',):
+            return 9.5
         if severity == 'high':
-            return 9.0
+            return 8.0
         elif severity == 'medium':
             return 5.0
         else:
             return 3.0
-    
+
+    @staticmethod
+    def _cwe_for_finding(finding: Dict[str, Any]) -> str:
+        """Map a finding to its CWE id (hard-coded credentials family).
+
+        CWE-798 is the canonical 'Use of Hard-coded Credentials'. CWE-321
+        (hard-coded cryptographic key) and CWE-259 (hard-coded password) are the
+        more specific sub-cases used where the finding type makes them apply.
+        """
+        haystack = " ".join(str(finding.get(k, "")) for k in
+                            ("rule_name", "pattern_category", "type", "description")).lower()
+        if any(t in haystack for t in ("private key", "private_key", "rsa", "pem", "crypto", "certificate")):
+            return "CWE-321"
+        if "password" in haystack or "passwd" in haystack:
+            return "CWE-259"
+        return "CWE-798"
+
+    @staticmethod
+    def _partial_fingerprint(finding: Dict[str, Any]) -> str:
+        """Stable fingerprint for cross-run dedup in SARIF consumers.
+
+        Built from rule + path + a masked value shape rather than the raw
+        secret, so the fingerprint file itself never carries a credential.
+        """
+        value = finding.get("value", "") or ""
+        masked = Reporter._mask_value(value)
+        basis = f"{finding.get('rule_id','')}|{finding.get('path','')}|{masked}"
+        return hashlib.sha256(basis.encode("utf-8")).hexdigest()[:32]
+
     @staticmethod
     def _mask_value(value: str) -> str:
         """Mask a secret value for display, showing only first/last 4 chars."""

@@ -1,0 +1,27 @@
+{
+  "_comment": "Ground truth for the benchmark corpus. Each entry under 'true_secrets' is a (file, line) where a real (synthetic) secret exists and SHOULD be detected. Files under 'clean' contain only decoys and should yield ZERO findings. Matching is at line granularity: a finding counts as a true positive if its (relative path, line) appears here.",
+  "true_secrets": [
+    {"file": "leaky/aws_app.py", "line": 8, "type": "aws_access_key_id"},
+    {"file": "leaky/aws_app.py", "line": 10, "type": "aws_secret_access_key"},
+    {"file": "leaky/service_tokens.json", "line": 3, "type": "github_token"},
+    {"file": "leaky/service_tokens.json", "line": 4, "type": "slack_token"},
+    {"file": "leaky/service_tokens.json", "line": 5, "type": "stripe_secret_key"},
+    {"file": "leaky/service_tokens.json", "line": 6, "type": "google_api_key"},
+    {"file": "leaky/main.tf", "line": 5, "type": "aws_access_key_id"},
+    {"file": "leaky/main.tf", "line": 6, "type": "aws_secret_access_key"},
+    {"file": "leaky/main.tf", "line": 13, "type": "password"},
+    {"file": "leaky/deploy.yml", "line": 15, "type": "aws_access_key_id"},
+    {"file": "leaky/deploy.yml", "line": 16, "type": "password"},
+    {"file": "leaky/deploy.yml", "line": 17, "type": "deploy_token"},
+    {"file": "leaky/private_key.pem", "line": 1, "type": "private_key"},
+    {"file": "leaky/more_tokens.env", "line": 4, "type": "openai_api_key"},
+    {"file": "leaky/more_tokens.env", "line": 5, "type": "huggingface_token"},
+    {"file": "leaky/more_tokens.env", "line": 6, "type": "jwt"}
+  ],
+  "clean_files": [
+    "clean/config_safe.py",
+    "clean/settings_safe.yaml",
+    "clean/public_cert.pem",
+    "clean/hashes_and_ids.py"
+  ]
+}

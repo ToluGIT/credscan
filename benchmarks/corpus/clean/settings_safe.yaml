@@ -1,0 +1,21 @@
+# Synthetic clean fixture: all secrets referenced from a secrets manager or env.
+# There should be ZERO findings here.
+database:
+  host: db.internal.example.com
+  port: 5432
+  username: app_user
+  password: ${DATABASE_PASSWORD}        # env reference, not a literal
+
+aws:
+  region: us-east-1
+  access_key_id: ${AWS_ACCESS_KEY_ID}    # env reference
+  secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+
+api:
+  base_url: https://api.example.com/v2
+  timeout_seconds: 30
+  retries: 3
+
+feature_flags:
+  enable_cache: true
+  enable_beta: false
