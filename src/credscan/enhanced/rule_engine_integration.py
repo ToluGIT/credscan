@@ -77,11 +77,15 @@ class EnhancedRule(Rule):
             line = item.get("line", 0)
 
             if value:
-                # Check value against all enabled pattern categories
-                matched_patterns = self.pattern_library.check_value(value)
+                # Check value against all enabled pattern categories, keeping
+                # the matched substring so the finding's value is the bare
+                # credential token (e.g. "AKIA...") rather than the whole
+                # "key = AKIA..." line. Live validation pairs an AKIA key with
+                # its secret and requires the exact 20-char token.
+                matched = self.pattern_library.extract_matches(value)
 
-                for category_name, patterns in matched_patterns.items():
-                    for pattern in patterns:
+                for category_name, hits in matched.items():
+                    for pattern, token in hits:
                         # Create a finding for each matched pattern
                         findings.append(
                             {
@@ -93,7 +97,7 @@ class EnhancedRule(Rule):
                                 "pattern_category": category_name,
                                 "confidence": pattern.confidence,
                                 "variable": key,
-                                "value": value,
+                                "value": token,
                                 "line": line,
                                 "path": filepath,
                                 "description": pattern.description
@@ -192,14 +196,15 @@ class EnhancedScanEngine(ScanEngine):
                         continue
 
                     for pattern in category.patterns:
-                        if pattern.matches(line):
-                            # Extract the actual credential value
-                            # This is a simplified approach - in real implementation,
-                            # you'd want to use the pattern to extract the exact credential
-
-                            # Create a fingerprint based on the actual content
-                            # This will deduplicate findings with the same actual credential
-                            fingerprint = f"{category_name}:{line}"
+                        # Extract the exact credential token, not the whole
+                        # line. Storing the bare token (e.g. "AKIA...20 chars")
+                        # is what lets live AWS validation pair the access key
+                        # with its secret, and keeps masking precise.
+                        token = pattern.extract(line)
+                        if token is not None:
+                            # Fingerprint on the extracted token so the same
+                            # credential written two ways dedups correctly.
+                            fingerprint = f"{category_name}:{token}"
 
                             if fingerprint in found_credentials:
                                 continue
@@ -216,7 +221,7 @@ class EnhancedScanEngine(ScanEngine):
                                     "pattern_category": category_name,
                                     "confidence": pattern.confidence,
                                     "variable": None,
-                                    "value": line,  # Use the specific line content
+                                    "value": token,  # the credential token only
                                     "line": line_num,
                                     "path": filepath,
                                     "description": pattern.description

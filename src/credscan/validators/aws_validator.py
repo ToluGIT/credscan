@@ -125,24 +125,35 @@ class AWSCredentialValidator:
 
         Pairs AKIA/ASIA keys with nearby secret keys in the same file.
         """
-        # Index findings by file+line proximity to pair access key + secret key
+        import re
+
+        # An AWS secret access key is exactly 40 chars of base64 alphabet.
+        secret_shape = re.compile(r"^[A-Za-z0-9/+]{40}$")
+
+        # Index findings to pair an access key with a secret in the same file.
+        # Prefer findings whose rule name says "secret"; fall back to any
+        # secret-shaped 40-char string in the same file (the secret often
+        # surfaces only as an entropy/base64 finding, not a named one).
         access_keys: List[Dict[str, Any]] = []
-        secret_keys: Dict[str, str] = {}  # file -> value mapping (last seen)
+        named_secrets: Dict[str, str] = {}  # file -> explicitly-named secret
+        shaped_secrets: Dict[str, str] = {}  # file -> secret-shaped candidate
 
         for finding in findings:
-            value = finding.get("value", "")
+            value = finding.get("value", "") or ""
             rule = finding.get("rule_name", "")
             path = finding.get("path", "")
 
             if value.startswith((_LONG_TERM_PREFIX, _TEMP_PREFIX)) and len(value) == 20:
                 access_keys.append(finding)
             if "secret" in rule.lower() or "AWS Secret" in rule:
-                secret_keys[path] = value
+                named_secrets[path] = value
+            elif secret_shape.match(value):
+                shaped_secrets.setdefault(path, value)
 
         for finding in access_keys:
             access_key_id = finding.get("value", "")
             path = finding.get("path", "")
-            secret = secret_keys.get(path, "")
+            secret = named_secrets.get(path) or shaped_secrets.get(path) or ""
 
             if not secret:
                 finding["aws_validation"] = (

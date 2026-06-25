@@ -194,6 +194,11 @@ def load_default_patterns() -> PatternLibrary:
                                 else "medium"
                             ),
                             confidence=0.8,
+                            # The regex captures the bare value in group 1 (quoted)
+                            # or group 2 (unquoted); extract that, not the
+                            # "keyword = value" line, so validation/masking get
+                            # the credential token alone.
+                            value_group=1,
                         )
                     )
 

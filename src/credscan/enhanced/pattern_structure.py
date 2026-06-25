@@ -18,6 +18,10 @@ class CredentialPattern:
     severity: str = "medium"  # Values: low, medium, high, critical
     compiled_pattern: Optional[Pattern] = None
     confidence: float = 0.8  # 0.0 to 1.0 confidence level
+    # Which regex group holds the credential token. 0 = whole match (default,
+    # for patterns that match the token directly). Set to 1+ on assignment-style
+    # patterns like `key = (<secret>)` where a group isolates the bare secret.
+    value_group: int = 0
     examples: List[str] = field(default_factory=list)  # Example matches for testing
     false_positives: List[str] = field(
         default_factory=list
@@ -36,6 +40,34 @@ class CredentialPattern:
         if not self.compiled_pattern or not value:
             return False
         return bool(self.compiled_pattern.search(value))
+
+    def extract(self, value: str) -> Optional[str]:
+        """Return the matched credential substring, not the whole input.
+
+        When a pattern matches inside a larger string (e.g. the line
+        ``aws_access_key_id = AKIA...``), downstream consumers — masking and
+        especially live validation, which pairs an ``AKIA`` key with its
+        secret — need the bare token, not the surrounding assignment.
+
+        By default the full match (``group(0)``) is the token. Patterns whose
+        regex isolates the secret in a capture group (assignment-style, e.g.
+        ``key = (<secret>)``) set ``value_group`` to that group's index, so the
+        bare secret is returned instead of the ``key = `` prefix. Alternation
+        groups like ``(AKIA|ASIA)[A-Z0-9]{16}`` keep ``value_group = 0`` because
+        their group is only a fragment of the token.
+        """
+        if not self.compiled_pattern or not value:
+            return None
+        m = self.compiled_pattern.search(value)
+        if not m:
+            return None
+        if self.value_group and m.groups():
+            # From value_group onward, return the first group that captured —
+            # handles patterns with alternative groups (quoted | unquoted value).
+            for g in m.groups()[self.value_group - 1 :]:
+                if g:
+                    return g
+        return m.group(0)
 
 
 @dataclass
@@ -62,6 +94,21 @@ class PatternCategory:
                 matches.append(pattern)
 
         return matches
+
+    def extract_matches(self, value: str) -> List[tuple]:
+        """Like check_value, but also return the matched credential substring.
+
+        Returns a list of (pattern, extracted_token) tuples.
+        """
+        if not self.enabled or not value:
+            return []
+
+        results = []
+        for pattern in self.patterns:
+            token = pattern.extract(value)
+            if token is not None:
+                results.append((pattern, token))
+        return results
 
 
 class PatternLibrary:
@@ -99,6 +146,24 @@ class PatternLibrary:
             category = self.categories.get(category_name)
             if category:
                 matches = category.check_value(value)
+                if matches:
+                    results[category_name] = matches
+
+        return results
+
+    def extract_matches(self, value: str) -> Dict[str, List[tuple]]:
+        """Like check_value, but each match carries the extracted token.
+
+        Returns {category_name: [(pattern, extracted_token), ...]}.
+        """
+        if not value:
+            return {}
+
+        results = {}
+        for category_name in self.enabled_categories:
+            category = self.categories.get(category_name)
+            if category:
+                matches = category.extract_matches(value)
                 if matches:
                     results[category_name] = matches
 
