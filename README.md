@@ -185,7 +185,7 @@ value, so no raw secret leaves the server.
 
 ```bash
 pip install -e ".[gui]"
-credscan-gui            # serves http://127.0.0.1:8000
+credscan-gui            # local mode, http://127.0.0.1:8000
 ```
 
 ![CredScan GUI dashboard](docs/screenshots/credscan-gui-dashboard.png)
@@ -199,6 +199,30 @@ suppress false positives into a baseline.
 The backend is a thin FastAPI layer (`credscan/gui/server.py`) wrapping the
 existing engine; the frontend is a single static page built to the terminal
 design system. Findings are returned masked (`AKIA...MPLE`), never raw.
+
+### Two modes
+
+- **Local** (default): scans server-local filesystem paths. For running the
+  tool on your own machine.
+- **Public** (`credscan-gui --public`, or `CREDSCAN_PUBLIC=1`): a hardened mode
+  for hosting on the open internet. Filesystem path scanning is disabled; the
+  only input is uploaded files or pasted text, which are scanned in a per-request
+  sandbox directory and deleted immediately. Hard limits bound every request
+  (2 MB, 200 files, 30 s, rate-limited). This exists because a publicly reachable
+  path scanner would let any visitor read the host's own filesystem.
+
+### Hosting it publicly (Docker)
+
+The repo ships a hardened GUI image (`Dockerfile.gui`) that runs public mode as
+a non-root user:
+
+```bash
+docker build -f Dockerfile.gui -t credscan-gui .
+docker run -p 8000:8000 credscan-gui      # public mode, upload-only
+```
+
+A `fly.toml` is included for a one-command deploy to Fly.io (`fly deploy`); any
+container host (Render, Railway) works the same way.
 
 ---
 

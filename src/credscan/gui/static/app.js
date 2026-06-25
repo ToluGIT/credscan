@@ -5,7 +5,7 @@ createApp({
   data() {
     return {
       version: "1.0.1",
-      engineStatus: "ENGINE ONLINE",
+      engineStatus: "ONLINE",
       screen: "dashboard",
       screens: [
         { id: "dashboard", label: "Dashboard" },
@@ -18,18 +18,34 @@ createApp({
       minConfidencePct: 50,
       validateLive: false,
       opts: { no_context_analysis: false, no_entropy: false },
+      // mode (fetched from /api/mode)
+      publicMode: false,
+      maxBytes: 2097152,
+      maxFiles: 200,
+      pasteText: "",
+      uploadFiles: [],
       quickActions: [
         { glyph: "▸", label: "SCAN DIR", path: "." },
         { glyph: "◆", label: "SCAN demo/", path: "demo" },
         { glyph: "⬢", label: "SCAN src/", path: "src" },
         { glyph: "▣", label: "SCAN tests/", path: "tests" },
       ],
-      coverage: [
-        { label: "paths", pct: 100 },
-        { label: "git-history", pct: 100 },
-        { label: "ci/cd", pct: 92 },
-        { label: "dockerfiles", pct: 88 },
-        { label: "web-endpoints", pct: 34 },
+      fileTypes: [
+        ".tf / .tfvars", "CloudFormation", ".github/workflows", ".gitlab-ci.yml",
+        "Jenkinsfile", "Dockerfile", ".env", "JSON", "YAML",
+        ".py / .js / .go / .java", "archives (zip/tar/jar)",
+      ],
+      detectCategories: [
+        "AWS keys", "GCP keys", "Azure", "Stripe", "Slack", "GitHub/GitLab tokens",
+        "OpenAI/Anthropic", "private keys (PEM)", "JWT", "DB connection strings",
+        "passwords", "OAuth secrets",
+      ],
+      cliCapabilities: [
+        { k: "git-history scan", v: "credscan --scan-history" },
+        { k: "web endpoint scan", v: "credscan --url <URL>" },
+        { k: "live AWS validation", v: "credscan --validate-aws" },
+        { k: "incremental / staged", v: "credscan --staged" },
+        { k: "SARIF + compliance export", v: "-o sarif,compliance" },
       ],
       busy: false,
       jobId: null,
@@ -110,10 +126,40 @@ createApp({
             min_confidence: parseFloat(this.minConfidence),
             no_context_analysis: this.opts.no_context_analysis,
             no_entropy: this.opts.no_entropy,
+            validate: this.validateLive,
           }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({ detail: "scan failed" }));
+          this.pushLine("error: " + (err.detail || res.status), "err");
+          this.busy = false; return;
+        }
+        const { id } = await res.json();
+        this.jobId = id;
+        this.streamScan(id);
+      } catch (e) {
+        this.pushLine("error: " + e.message, "err");
+        this.busy = false;
+      }
+    },
+    onFiles(ev) { this.uploadFiles = Array.from(ev.target.files || []); },
+    async runUpload() {
+      if (this.busy) return;
+      if (!this.pasteText.trim() && !this.uploadFiles.length) {
+        alert("paste some content or choose a file first");
+        return;
+      }
+      this.busy = true; this.liveLines = []; this.findings = [];
+      this.summary = { critical: 0, high: 0, medium: 0, low: 0 };
+      this.screen = "live";
+      try {
+        const fd = new FormData();
+        fd.append("min_confidence", this.minConfidence);
+        if (this.pasteText.trim()) fd.append("text", this.pasteText);
+        this.uploadFiles.forEach(f => fd.append("files", f));
+        const res = await fetch("/api/scan/upload", { method: "POST", body: fd });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: "upload failed" }));
           this.pushLine("error: " + (err.detail || res.status), "err");
           this.busy = false; return;
         }
@@ -196,7 +242,12 @@ createApp({
     this.tick();
     setInterval(this.tick, 1000);
     fetch("/api/health").then(r => r.json()).then(d => {
-      if (d.status === "ok") this.engineStatus = "ENGINE ONLINE";
-    }).catch(() => { this.engineStatus = "ENGINE OFFLINE"; });
+      if (d.status === "ok") this.engineStatus = "ONLINE";
+    }).catch(() => { this.engineStatus = "OFFLINE"; });
+    fetch("/api/mode").then(r => r.json()).then(d => {
+      this.publicMode = !!d.public;
+      this.maxBytes = d.max_bytes || this.maxBytes;
+      this.maxFiles = d.max_files || this.maxFiles;
+    }).catch(() => {});
   },
 }).mount("#app");

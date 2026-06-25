@@ -6,16 +6,29 @@ serves the static terminal-styled frontend. A scan runs in a background thread;
 its output lines and progress are streamed to the browser over Server-Sent
 Events, and findings are fetched once it completes.
 
+The GUI runs in one of two modes:
+
+  - LOCAL (default): scans server-local filesystem paths. For a developer
+    running the tool on their own machine.
+  - PUBLIC (CREDSCAN_PUBLIC=1, or --public): a hardened mode for hosting the
+    GUI on the open internet. Path scanning is DISABLED; the only input is
+    uploaded files or pasted text, which are written to a per-request sandboxed
+    temp directory, scanned, and deleted immediately. Size, file-count, and
+    time limits bound every request. This exists because a publicly reachable
+    path scanner would let any visitor read the server's own filesystem
+    (/etc, env files, mounted secrets) through the scanner's findings.
+
 Security posture (the GUI is part of the tool's threat model):
   - Findings are masked before they leave the server: the API never returns a
     raw secret value, only the masked form (AKIA...MPLE).
   - No secret value is placed in a URL, query string, or log line.
-  - Scans run against server-local paths only; this is a local developer tool,
-    not a multi-tenant service.
+  - In PUBLIC mode there is no path access, no persistence, and hard limits.
 """
 import logging
 import os
 import queue
+import shutil
+import tempfile
 import threading
 import time
 import uuid
@@ -25,7 +38,7 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 try:
-    from fastapi import FastAPI, HTTPException
+    from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
     from fastapi.responses import FileResponse, StreamingResponse
     from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel
@@ -40,13 +53,22 @@ from credscan.remediation import remediation_for
 
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
-# Cap how many files a single GUI scan will process. A whole-monorepo scan
-# belongs on the CLI; in the browser it would tie up the server with no
-# feedback. Oversized scans are rejected with a clear message rather than hung.
+# Local-mode cap: a whole-monorepo scan belongs on the CLI; in the browser it
+# would tie up the server with no feedback. Oversized scans are rejected.
 _MAX_GUI_FILES = 5000
-# Keep only the most recent N jobs so a long-lived server does not grow
-# unbounded.
+# Keep only the most recent N jobs so a long-lived server does not grow unbounded.
 _MAX_JOBS = 50
+
+# Public-mode hard limits (a publicly reachable scanner is a high-value target).
+_PUBLIC_MAX_BYTES = 2 * 1024 * 1024     # 2 MB total upload
+_PUBLIC_MAX_FILES = 200                 # files per request (incl. inside archives)
+_PUBLIC_SCAN_TIMEOUT = 30               # seconds per scan
+_PUBLIC_RATE_WINDOW = 60                # seconds
+_PUBLIC_RATE_MAX = 20                   # scans per window per client
+
+
+def _is_public_mode() -> bool:
+    return os.environ.get("CREDSCAN_PUBLIC", "").strip().lower() in ("1", "true", "yes")
 
 
 @dataclass
@@ -62,6 +84,8 @@ class ScanJob:
     started: float = 0.0
     finished: float = 0.0
     error: Optional[str] = None
+    # Public/upload mode: an isolated sandbox dir holding the uploaded content.
+    sandbox: Optional[str] = None
 
 
 class ScanRequest(BaseModel):
@@ -70,6 +94,18 @@ class ScanRequest(BaseModel):
     no_context_analysis: bool = False
     no_entropy: bool = False
     exclude: Optional[str] = None
+    validate: bool = False
+
+
+class HistoryRequest(BaseModel):
+    path: str = "."
+    max_commits: Optional[int] = 100
+    since: Optional[str] = None
+
+
+class UrlRequest(BaseModel):
+    url: str
+    crawl: bool = False
 
 
 def _mask(value: str) -> str:
@@ -100,6 +136,48 @@ def _public_finding(f: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _apply_validation(findings, job):
+    """Run AWS + token validators over findings (read-only, opt-in)."""
+    try:
+        from credscan.validators import AWSCredentialValidator, TokenValidator
+        findings = AWSCredentialValidator({}).enrich_findings(findings)
+        findings = TokenValidator({}).enrich_findings(findings)
+    except Exception as e:
+        job.lines.put(f"  validation skipped: {e}")
+    return findings
+
+
+def _ssrf_blocked(url: str) -> Optional[str]:
+    """Return a reason string if the URL must not be fetched, else None.
+
+    Blocks scanning of internal/loopback/link-local/metadata addresses so the
+    URL-scan feature cannot be turned into an SSRF probe of the host's network.
+    """
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url if "://" in url else "http://" + url)
+    if parsed.scheme not in ("http", "https"):
+        return "only http/https URLs are allowed"
+    host = parsed.hostname
+    if not host:
+        return "no host in URL"
+    if host.lower() in ("localhost", "metadata.google.internal"):
+        return "internal host blocked"
+    try:
+        for info in socket.getaddrinfo(host, None):
+            ip = ipaddress.ip_address(info[4][0])
+            if (ip.is_private or ip.is_loopback or ip.is_link_local or
+                    ip.is_reserved or ip.is_multicast):
+                return f"non-public address blocked ({ip})"
+            if str(ip) == "169.254.169.254":  # cloud metadata
+                return "cloud metadata endpoint blocked"
+    except Exception:
+        return "could not resolve host"
+    return None
+
+
 def create_app() -> "FastAPI":
     app = FastAPI(title="CredScan GUI", docs_url="/api/docs")
     jobs: Dict[str, ScanJob] = {}
@@ -118,15 +196,18 @@ def create_app() -> "FastAPI":
                 config["exclude_patterns"] = [
                     p.strip() for p in job.options["exclude"].split(",") if p.strip()
                 ]
+            # Upload mode restricts the scan to exactly the uploaded files.
+            if job.options.get("explicit_files") is not None:
+                config["explicit_files"] = job.options["explicit_files"]
 
-            job.lines.put(f"$ credscan --path {job.path} --min-confidence "
-                          f"{config['min_confidence_threshold']}")
+            uploaded = job.sandbox is not None
+            label = "uploaded content" if uploaded else job.path
+            job.lines.put(f"$ credscan {'(upload)' if uploaded else '--path ' + job.path} "
+                          f"--min-confidence {config['min_confidence_threshold']}")
             job.lines.put("initializing engine ...")
 
             engine = build_scan_engine(config)
 
-            # Enforce the scope cap before scanning so a huge tree cannot hang
-            # the server. find_files() is a cheap directory walk.
             try:
                 planned = engine.find_files()
             except Exception:
@@ -142,9 +223,23 @@ def create_app() -> "FastAPI":
             job.lines.put(f"scanning {len(planned)} files ...")
             findings = engine.scan()
 
+            # Optional live validation: confirm which discovered keys are active.
+            if job.options.get("validate"):
+                job.lines.put("validating discovered credentials (read-only) ...")
+                findings = _apply_validation(findings, job)
+
             job.files_found = getattr(engine, "files_found", 0)
             job.files_scanned = getattr(engine, "files_scanned", job.files_found)
-            job.findings = [_public_finding(f) for f in findings]
+
+            # In upload mode, display paths relative to the sandbox so the
+            # server's temp directory layout is never revealed to the client.
+            def _project(f):
+                pf = _public_finding(f)
+                if uploaded and job.sandbox and pf["file"].startswith(job.sandbox):
+                    pf["file"] = os.path.relpath(pf["file"], job.sandbox)
+                return pf
+
+            job.findings = [_project(f) for f in findings]
 
             by_sev: Dict[str, int] = {}
             for f in job.findings:
@@ -161,27 +256,234 @@ def create_app() -> "FastAPI":
             job.status = "error"
             job.lines.put(f"error: {e}")
         finally:
+            # Always delete the uploaded content; nothing is persisted.
+            if job.sandbox:
+                shutil.rmtree(job.sandbox, ignore_errors=True)
+                job.sandbox = None
             job.finished = time.monotonic()
             job.lines.put("__END__")
+
+    def _run_custom(job: ScanJob, produce, banner: str):
+        """Run a non-path scan (git history, URL) that produces a finding list."""
+        job.status = "running"
+        job.started = time.monotonic()
+        try:
+            job.lines.put(banner)
+            findings = produce(job)
+            job.findings = [_public_finding(f) for f in findings]
+            job.files_scanned = len(findings)
+            by_sev: Dict[str, int] = {}
+            for f in job.findings:
+                by_sev[f["severity"]] = by_sev.get(f["severity"], 0) + 1
+            for sev in ("critical", "high", "medium", "low"):
+                if by_sev.get(sev):
+                    job.lines.put(f"  {sev:<8} {by_sev[sev]}")
+            job.lines.put(f"scan complete · {len(job.findings)} findings")
+            job.status = "done"
+        except Exception as e:
+            logger.exception("custom scan failed")
+            job.error = str(e)
+            job.status = "error"
+            job.lines.put(f"error: {e}")
+        finally:
+            job.finished = time.monotonic()
+            job.lines.put("__END__")
+
+    public_mode = _is_public_mode()
+    rate_hits: Dict[str, List[float]] = {}
+
+    def _register_custom(job: ScanJob, produce, banner: str):
+        jobs[job.id] = job
+        if len(jobs) > _MAX_JOBS:
+            for old in list(jobs)[: len(jobs) - _MAX_JOBS]:
+                jobs.pop(old, None)
+        threading.Thread(target=_run_custom, args=(job, produce, banner),
+                         daemon=True).start()
+
+    def _register_job(job: ScanJob):
+        jobs[job.id] = job
+        if len(jobs) > _MAX_JOBS:
+            for old in list(jobs)[: len(jobs) - _MAX_JOBS]:
+                jobs.pop(old, None)
+        threading.Thread(target=_run_scan, args=(job,), daemon=True).start()
+
+    def _rate_limit(client: str):
+        now = time.monotonic()
+        hits = [t for t in rate_hits.get(client, []) if now - t < _PUBLIC_RATE_WINDOW]
+        if len(hits) >= _PUBLIC_RATE_MAX:
+            raise HTTPException(status_code=429, detail="rate limit exceeded, slow down")
+        hits.append(now)
+        rate_hits[client] = hits
 
     @app.get("/api/health")
     def health():
         return {"status": "ok", "service": "credscan-gui"}
 
+    @app.get("/api/mode")
+    def mode():
+        # The frontend uses this to switch between path-scan and upload-only UI.
+        return {
+            "public": public_mode,
+            "max_bytes": _PUBLIC_MAX_BYTES,
+            "max_files": _PUBLIC_MAX_FILES,
+        }
+
     @app.post("/api/scan")
     def start_scan(req: ScanRequest):
+        if public_mode:
+            # Path scanning would let a visitor read the server's filesystem.
+            raise HTTPException(
+                status_code=403,
+                detail="path scanning is disabled in public mode; upload files instead",
+            )
         path = os.path.abspath(os.path.expanduser(req.path))
         if not os.path.exists(path):
             raise HTTPException(status_code=400, detail=f"path not found: {req.path}")
         options = req.model_dump() if hasattr(req, "model_dump") else req.dict()
         job = ScanJob(id=uuid.uuid4().hex[:12], path=path, options=options)
-        jobs[job.id] = job
-        # Evict oldest jobs so a long-lived server does not grow unbounded.
-        if len(jobs) > _MAX_JOBS:
-            for old in list(jobs)[: len(jobs) - _MAX_JOBS]:
-                jobs.pop(old, None)
-        threading.Thread(target=_run_scan, args=(job,), daemon=True).start()
+        _register_job(job)
         return {"id": job.id, "path": path}
+
+    @app.post("/api/scan/upload")
+    async def scan_upload(request: Request,
+                          files: List[UploadFile] = File(default=[]),
+                          text: str = Form(default=""),
+                          filename: str = Form(default="pasted.txt"),
+                          min_confidence: float = Form(default=0.5)):
+        """Scan uploaded files or pasted text in a sandboxed temp dir.
+
+        Available in both modes; it is the ONLY scan path in public mode.
+        Content is written under an isolated temp dir, scanned, and deleted.
+        """
+        client = request.client.host if request.client else "unknown"
+        _rate_limit(client)
+
+        sandbox = tempfile.mkdtemp(prefix="credscan-upload-")
+        total = 0
+        count = 0
+        try:
+            # Pasted text becomes a single file.
+            if text:
+                data = text.encode("utf-8", errors="ignore")
+                total += len(data)
+                if total > _PUBLIC_MAX_BYTES:
+                    raise HTTPException(status_code=413, detail="upload too large")
+                safe = os.path.basename(filename) or "pasted.txt"
+                with open(os.path.join(sandbox, safe), "wb") as fh:
+                    fh.write(data)
+                count += 1
+
+            for up in files:
+                if count >= _PUBLIC_MAX_FILES:
+                    raise HTTPException(status_code=413, detail="too many files")
+                # Flatten any path components in the client-supplied name.
+                safe = os.path.basename(up.filename or f"file{count}")
+                data = await up.read()
+                total += len(data)
+                if total > _PUBLIC_MAX_BYTES:
+                    raise HTTPException(status_code=413, detail="upload too large")
+                with open(os.path.join(sandbox, safe), "wb") as fh:
+                    fh.write(data)
+                count += 1
+
+            if count == 0:
+                raise HTTPException(status_code=400, detail="no files or text provided")
+
+            explicit = [os.path.join(sandbox, n) for n in os.listdir(sandbox)]
+            options = {
+                "min_confidence": min_confidence,
+                "explicit_files": explicit,
+            }
+            job = ScanJob(id=uuid.uuid4().hex[:12], path=sandbox,
+                          options=options, sandbox=sandbox)
+            # explicit_files flows into the engine config via _run_scan below.
+            job.options["explicit_files"] = explicit
+            _register_job(job)
+            return {"id": job.id, "files": count}
+        except HTTPException:
+            shutil.rmtree(sandbox, ignore_errors=True)
+            raise
+        except Exception as e:
+            shutil.rmtree(sandbox, ignore_errors=True)
+            raise HTTPException(status_code=500, detail=f"upload failed: {e}")
+
+    @app.post("/api/scan/history")
+    def scan_history(req: HistoryRequest):
+        """Scan git commit history (local mode only — needs a repo on disk)."""
+        if public_mode:
+            raise HTTPException(status_code=403,
+                                detail="git-history scanning is disabled in public mode")
+        repo = os.path.abspath(os.path.expanduser(req.path))
+
+        def produce(job):
+            from credscan.history.scanner import HistoryScanner
+            cfg = {"repo_path": repo, "history_max_commits": req.max_commits}
+            if req.since:
+                cfg["history_since"] = req.since
+            return HistoryScanner(cfg).scan()
+
+        job = ScanJob(id=uuid.uuid4().hex[:12], path=repo, options={})
+        _register_custom(job, produce,
+                         f"$ credscan --scan-history --max-commits {req.max_commits}")
+        return {"id": job.id}
+
+    @app.post("/api/scan/url")
+    def scan_url(req: UrlRequest):
+        """Scan a web URL for exposed credentials, with SSRF guardrails."""
+        blocked = _ssrf_blocked(req.url)
+        if blocked:
+            raise HTTPException(status_code=400, detail=f"URL not allowed: {blocked}")
+
+        def produce(job):
+            from credscan.web.scanner import WebScanner
+            return WebScanner({"web_timeout": 10}).scan_url(req.url)
+
+        job = ScanJob(id=uuid.uuid4().hex[:12], path=req.url, options={})
+        _register_custom(job, produce, f"$ credscan --url {req.url}")
+        return {"id": job.id}
+
+    @app.get("/api/scan/{job_id}/export")
+    def export(job_id: str, fmt: str = "sarif"):
+        """Generate a server-side report (sarif | compliance | json) for a scan."""
+        job = jobs.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="unknown scan id")
+        if fmt not in ("sarif", "compliance", "json"):
+            raise HTTPException(status_code=400, detail="fmt must be sarif|compliance|json")
+
+        # Map the GUI finding shape back to the reporter's expected keys. The
+        # 'value' carried into the report is the MASKED form, so the export
+        # never contains a raw secret.
+        def _to_report_shape(f):
+            return {
+                "rule_id": f.get("detector", "enhanced_pattern"),
+                "rule_name": f.get("type", "Credential"),
+                "severity": f.get("severity", "medium"),
+                "path": f.get("file", ""),
+                "line": f.get("line", 0),
+                "value": f.get("masked", ""),
+                "pattern_category": f.get("category", ""),
+                "description": f.get("type", ""),
+            }
+
+        report_findings = [_to_report_shape(f) for f in job.findings]
+        out_dir = tempfile.mkdtemp(prefix="credscan-export-")
+        try:
+            reporter = Reporter({"output_formats": [fmt], "output_directory": out_dir,
+                                 "disable_colors": True})
+            getattr(reporter, f"report_{fmt}")(report_findings, {"files_scanned": job.files_scanned})
+            produced = [os.path.join(out_dir, n) for n in os.listdir(out_dir)]
+            if not produced:
+                raise HTTPException(status_code=500, detail="export produced no file")
+            ext = {"sarif": "sarif", "compliance": "csv", "json": "json"}[fmt]
+            return FileResponse(produced[0], filename=f"credscan-report.{ext}",
+                                media_type="application/octet-stream")
+        except HTTPException:
+            shutil.rmtree(out_dir, ignore_errors=True)
+            raise
+        except Exception as e:
+            shutil.rmtree(out_dir, ignore_errors=True)
+            raise HTTPException(status_code=500, detail=f"export failed: {e}")
 
     @app.get("/api/scan/{job_id}/stream")
     def stream(job_id: str):
@@ -246,20 +548,27 @@ def main():
     parser = argparse.ArgumentParser(description="Launch the CredScan web GUI")
     parser.add_argument("--host", default="127.0.0.1", help="bind host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="bind port (default: 8000)")
+    parser.add_argument("--public", action="store_true",
+                        help="hardened public mode: upload-only, no path scanning "
+                             "(safe to host on the open internet)")
     args = parser.parse_args()
+
+    if args.public:
+        os.environ["CREDSCAN_PUBLIC"] = "1"
 
     try:
         import uvicorn
     except ImportError:
         raise SystemExit("The GUI requires: pip install 'credscan[gui]'")
 
-    if args.host not in ("127.0.0.1", "localhost"):
-        print(f"WARNING: binding to {args.host} exposes the scanner on the "
-              f"network with no authentication. Findings (masked) and scan "
-              f"control would be reachable by others. Use 127.0.0.1 unless you "
-              f"are certain.")
+    public = _is_public_mode()
+    if args.host not in ("127.0.0.1", "localhost") and not public:
+        print(f"WARNING: binding to {args.host} in LOCAL mode exposes filesystem "
+              f"path scanning on the network with no authentication. Use --public "
+              f"to host safely (upload-only), or bind to 127.0.0.1.")
 
-    print(f"CredScan GUI -> http://{args.host}:{args.port}")
+    mode_label = "PUBLIC (upload-only)" if public else "LOCAL (path scanning)"
+    print(f"CredScan GUI [{mode_label}] -> http://{args.host}:{args.port}")
     uvicorn.run(create_app(), host=args.host, port=args.port, log_level="info")
 
 

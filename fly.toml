@@ -1,0 +1,27 @@
+# Fly.io deploy config for the CredScan public GUI.
+#   fly launch --no-deploy      # first time, to create the app
+#   fly deploy                  # build Dockerfile.gui and ship
+#
+# The GUI runs in public mode (upload-only, sandboxed, no path scanning), so it
+# is safe to expose. Adjust `app` to your Fly app name.
+app = "credscan-gui"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.gui"
+
+[env]
+  CREDSCAN_PUBLIC = "1"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  # A small machine is plenty; scans are capped at 2MB / 200 files / 30s.
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

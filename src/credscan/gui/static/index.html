@@ -12,12 +12,11 @@
   <!-- Top bar -->
   <div class="topbar">
     <div>
-      <span class="title">CREDSCAN(1)</span>
+      <span class="title">CREDSCAN</span>
       <span class="sub"> · CLOUD SECURITY · CREDENTIAL SCANNER</span>
     </div>
     <div>
       <span class="online">{{ engineStatus }}</span>
-      <span class="ver"> · v{{ version }}</span>
     </div>
   </div>
 
@@ -38,10 +37,11 @@
     <div class="statusline">
       <span class="dot">{{ statusWord }}</span>
       <span class="sub">{{ statusContext }}</span>
-      <span class="flags">[strict] [validate-live] [git-history]</span>
+      <span class="flags">{{ publicMode ? '[upload-only] [sandboxed] [no-persistence]' : '[strict] [validate-live] [git-history]' }}</span>
     </div>
 
-    <div class="panel">
+    <!-- Local mode: scan a server-local path -->
+    <div class="panel" v-if="!publicMode">
       <div class="cli-row">
         <span class="dollar">$</span>
         <input v-model="scanPath" placeholder="path to scan  e.g. ." @keyup.enter="runScan">
@@ -52,6 +52,19 @@
           <span class="glyph">{{ qa.glyph }}</span>{{ qa.label }}
         </button>
       </div>
+    </div>
+
+    <!-- Public mode: upload files or paste content (no filesystem access) -->
+    <div class="panel" v-else>
+      <div class="comment">// paste code or config, or drop files — scanned in a sandbox and discarded</div>
+      <textarea v-model="pasteText" rows="6"
+                placeholder="paste a .env, Terraform, workflow YAML, source file ..."
+                style="font-family:inherit; resize:vertical"></textarea>
+      <div class="cli-row" style="margin-top:10px">
+        <input type="file" multiple ref="fileInput" @change="onFiles" style="border:none; padding:0">
+        <button class="btn" :disabled="busy" @click="runUpload">SCAN ▶</button>
+      </div>
+      <div class="comment">// limit {{ Math.round(maxBytes/1024/1024) }}MB · {{ maxFiles }} files · nothing stored</div>
     </div>
 
     <div class="panel">
@@ -71,12 +84,28 @@
     </div>
 
     <div class="panel">
-      <div class="sec-head"><span class="name">detector-coverage</span><span class="meta">[8 detectors]</span></div>
-      <div class="comment">// source types this scan understands</div>
-      <div class="cov-row" v-for="c in coverage" :key="c.label">
-        <span class="k" style="color:var(--text-muted)">{{ c.label }}</span>
-        <span class="cov-bar" :style="{color: c.pct >= 90 ? 'var(--accent)' : 'var(--warn)'}">{{ bar(c.pct) }}</span>
-        <span class="v">{{ c.pct }}%</span>
+      <div class="sec-head"><span class="name">what-it-scans</span><span class="meta">[8 parsers]</span></div>
+      <div class="comment">// file types CredScan understands, with dedicated parsers</div>
+      <div class="brackets">
+        <span class="opt on" v-for="t in fileTypes" :key="t">[✓] {{ t }}</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="sec-head"><span class="name">what-it-detects</span><span class="meta">[15+ categories]</span></div>
+      <div class="comment">// secret classes, matched by pattern + entropy + context</div>
+      <div class="brackets">
+        <span class="opt on" v-for="c in detectCategories" :key="c">[✓] {{ c }}</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="sec-head"><span class="name">also-on-the-cli</span><span class="meta">[more power]</span></div>
+      <div class="comment">// capabilities beyond this GUI</div>
+      <div class="drow" v-for="cap in cliCapabilities" :key="cap.k">
+        <span class="k">{{ cap.k }}</span>
+        <span class="tag">{{ cap.v }}</span>
+        <span></span>
       </div>
     </div>
   </div>

@@ -1,0 +1,29 @@
+# CredScan GUI image — hardened public mode, safe to host on the open internet.
+#
+# Runs the web GUI in PUBLIC mode (upload-only, no filesystem path scanning) as
+# a non-root user. Build:   docker build -f Dockerfile.gui -t credscan-gui .
+# Run:     docker run -p 8000:8000 credscan-gui
+FROM python:3.12-slim
+
+WORKDIR /opt/credscan
+
+COPY setup.py setup.cfg pyproject.toml MANIFEST.in README.md ./
+COPY src/ ./src/
+
+# Install with the GUI extra (fastapi, uvicorn, python-multipart).
+RUN pip install --no-cache-dir ".[gui]" \
+    && rm -rf /root/.cache
+
+# Non-root user. The scanner never needs root; uploaded content is written to
+# the OS temp dir and deleted after each scan.
+RUN useradd --create-home --uid 10001 scanner
+USER scanner
+
+# Public mode is the default for this image: path scanning is disabled, only
+# uploaded/pasted content is scanned, in a sandbox, with hard size/rate limits.
+ENV CREDSCAN_PUBLIC=1
+
+EXPOSE 8000
+
+# Bind to all interfaces inside the container; the host/platform maps the port.
+CMD ["credscan-gui", "--host", "0.0.0.0", "--port", "8000"]
