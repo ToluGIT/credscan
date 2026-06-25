@@ -52,6 +52,28 @@
           <span class="glyph">{{ qa.glyph }}</span>{{ qa.label }}
         </button>
       </div>
+
+      <!-- Scan options (folded in from the old Config tab) -->
+      <div class="opt-toggle" @click="showOptions = !showOptions">
+        {{ showOptions ? '▾' : '▸' }} options · min-confidence {{ minConfidence }}
+      </div>
+      <div v-show="showOptions" class="opt-body">
+        <div class="slider-wrap">
+          <div class="slider-head"><span class="lbl">--min-confidence</span><span class="val">{{ minConfidence }}</span></div>
+          <input type="range" min="0" max="100" v-model.number="minConfidencePct">
+          <div class="slider-ends"><span>0 noisy</span><span>100 strict</span></div>
+        </div>
+        <div class="comment" style="margin-top:12px">// toggle engines</div>
+        <div class="brackets">
+          <span class="opt" :class="{on: !opts.no_context_analysis}" @click="opts.no_context_analysis = !opts.no_context_analysis">
+            [{{ !opts.no_context_analysis ? '✓' : ' ' }}] context-analysis</span>
+          <span class="opt" :class="{on: !opts.no_entropy}" @click="opts.no_entropy = !opts.no_entropy">
+            [{{ !opts.no_entropy ? '✓' : ' ' }}] entropy</span>
+          <span class="opt" :class="{on: validateLive}" @click="validateLive = !validateLive">
+            [{{ validateLive ? '✓' : ' ' }}] validate-live</span>
+        </div>
+        <div class="cmd-preview" style="margin-top:12px"><span class="dollar">$</span> {{ commandPreview }}</div>
+      </div>
     </div>
 
     <!-- Public mode: upload files or paste content (no filesystem access) -->
@@ -64,7 +86,35 @@
         <input type="file" multiple ref="fileInput" @change="onFiles" style="border:none; padding:0">
         <button class="btn" :disabled="busy" @click="runUpload">SCAN ▶</button>
       </div>
-      <div class="comment">// limit {{ Math.round(maxBytes/1024/1024) }}MB · {{ maxFiles }} files · nothing stored</div>
+      <div class="filelist" v-if="uploadFiles.length">
+        <span class="chip" v-for="(f,i) in uploadFiles" :key="f.name+f.size">
+          {{ f.name }} <span class="x" @click="removeFile(i)">✕</span>
+        </span>
+        <span class="chip-clear" @click="uploadFiles = []">clear all</span>
+      </div>
+      <div class="comment">// {{ uploadFiles.length || 'no' }} file(s) queued · limit {{ Math.round(maxBytes/1024/1024) }}MB · {{ maxFiles }} files · nothing stored</div>
+
+      <!-- Scan options (folded in from the old Config tab) -->
+      <div class="opt-toggle" @click="showOptions = !showOptions">
+        {{ showOptions ? '▾' : '▸' }} options · min-confidence {{ minConfidence }}
+      </div>
+      <div v-show="showOptions" class="opt-body">
+        <div class="slider-wrap">
+          <div class="slider-head"><span class="lbl">--min-confidence</span><span class="val">{{ minConfidence }}</span></div>
+          <input type="range" min="0" max="100" v-model.number="minConfidencePct">
+          <div class="slider-ends"><span>0 noisy</span><span>100 strict</span></div>
+        </div>
+        <div class="comment" style="margin-top:12px">// toggle engines</div>
+        <div class="brackets">
+          <span class="opt" :class="{on: !opts.no_context_analysis}" @click="opts.no_context_analysis = !opts.no_context_analysis">
+            [{{ !opts.no_context_analysis ? '✓' : ' ' }}] context-analysis</span>
+          <span class="opt" :class="{on: !opts.no_entropy}" @click="opts.no_entropy = !opts.no_entropy">
+            [{{ !opts.no_entropy ? '✓' : ' ' }}] entropy</span>
+          <span class="opt off-locked" title="Live validation sends the uploaded key to its provider to test if it is active. Disabled on the public demo so it cannot be used as a credential-checking oracle.">
+            [✕] validate-live · disabled in public mode</span>
+        </div>
+        <div class="cmd-preview" style="margin-top:12px"><span class="dollar">$</span> {{ commandPreview }}</div>
+      </div>
     </div>
 
     <div class="panel">
@@ -106,63 +156,6 @@
         <span class="k">{{ cap.k }}</span>
         <span class="tag">{{ cap.v }}</span>
         <span></span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Scan Config ─────────────────────────────────────────── -->
-  <div v-show="screen === 'config'" class="fade-up">
-    <div class="prompt">
-      <span class="host">devops@credscan</span> <span class="dollar">$</span>
-      <span class="cmd"> credscan scan --configure</span><span class="cursor"></span>
-    </div>
-    <div class="comment">// build a scan profile · assembled command shown below</div>
-
-    <div class="panel">
-      <!-- Input: a server path in local mode, upload/paste in public mode -->
-      <div class="comment">// {{ publicMode ? 'INPUT — upload or paste (no filesystem access)' : 'PATH' }}</div>
-      <div class="cli-row" v-if="!publicMode">
-        <span class="dollar">▸</span>
-        <input v-model="scanPath" placeholder="directory or file to scan">
-      </div>
-      <template v-else>
-        <textarea v-model="pasteText" rows="5"
-                  placeholder="paste a .env, Terraform, workflow YAML, source file ..."
-                  style="font-family:inherit; resize:vertical"></textarea>
-        <div class="cli-row" style="margin-top:10px">
-          <input type="file" multiple ref="fileInput" @change="onFiles" style="border:none; padding:0">
-        </div>
-        <div class="comment">// limit {{ Math.round(maxBytes/1024/1024) }}MB · {{ maxFiles }} files · scanned in a sandbox, then discarded</div>
-      </template>
-
-      <div class="sec-head" style="margin-top:16px"><span class="name">thresholds</span></div>
-      <div class="comment">// tune sensitivity vs. noise</div>
-      <div class="slider-wrap">
-        <div class="slider-head"><span class="lbl">--min-confidence</span><span class="val">{{ minConfidence }}</span></div>
-        <input type="range" min="0" max="100" v-model.number="minConfidencePct">
-        <div class="slider-ends"><span>0 noisy</span><span>100 strict</span></div>
-      </div>
-
-      <div class="sec-head" style="margin-top:16px"><span class="name">flags & detectors</span></div>
-      <div class="comment">// toggle engines</div>
-      <div class="brackets">
-        <span class="opt" :class="{on: !opts.no_context_analysis}" @click="opts.no_context_analysis = !opts.no_context_analysis">
-          [{{ !opts.no_context_analysis ? '✓' : ' ' }}] context-analysis</span>
-        <span class="opt" :class="{on: !opts.no_entropy}" @click="opts.no_entropy = !opts.no_entropy">
-          [{{ !opts.no_entropy ? '✓' : ' ' }}] entropy</span>
-        <span v-if="!publicMode" class="opt" :class="{on: validateLive}" @click="validateLive = !validateLive">
-          [{{ validateLive ? '✓' : ' ' }}] validate-live</span>
-        <span v-else class="opt off-locked" title="Live validation sends the uploaded key to its provider to test if it is active. Disabled on the public demo so it cannot be used as a credential-checking oracle.">
-          [✕] validate-live · disabled in public mode</span>
-      </div>
-      <div v-if="publicMode" class="comment">// validate-live would call the provider with the uploaded key — off here so the demo is not a credential oracle</div>
-
-      <div class="comment" style="margin-top:16px">// ASSEMBLED COMMAND</div>
-      <div class="cmd-preview"><span class="dollar">$</span> {{ commandPreview }}</div>
-
-      <div style="display:flex; gap:8px; margin-top:8px">
-        <button class="btn" :disabled="busy" @click="runConfigured">RUN SCAN ▶</button>
-        <button class="btn-ghost" @click="resetConfig">RESET</button>
       </div>
     </div>
   </div>

@@ -9,7 +9,6 @@ createApp({
       screen: "dashboard",
       screens: [
         { id: "dashboard", label: "Dashboard" },
-        { id: "config", label: "Scan Config" },
         { id: "advanced", label: "Advanced" },
         { id: "live", label: "Live Output" },
         { id: "report", label: "Findings" },
@@ -18,6 +17,7 @@ createApp({
       scanPath: ".",
       minConfidencePct: 50,
       validateLive: false,
+      showOptions: false,
       opts: { no_context_analysis: false, no_entropy: false },
       // advanced scans (git history, web endpoint)
       historyPath: ".",
@@ -130,14 +130,7 @@ createApp({
       return "unverified";
     },
     quick(qa) { this.scanPath = qa.path; this.runScan(); },
-    // The Config tab's RUN button dispatches by mode: a path scan locally,
-    // an upload scan publicly (where path scanning is disabled).
-    runConfigured() { return this.publicMode ? this.runUpload() : this.runScan(); },
     filterBy(sev) { this.sevFilter = sev; this.screen = "report"; },
-    resetConfig() {
-      this.scanPath = "."; this.minConfidencePct = 50;
-      this.validateLive = false; this.opts = { no_context_analysis: false, no_entropy: false };
-    },
     async runScan() {
       if (this.busy) return;
       this.busy = true; this.liveLines = []; this.findings = [];
@@ -167,7 +160,18 @@ createApp({
         this.busy = false;
       }
     },
-    onFiles(ev) { this.uploadFiles = Array.from(ev.target.files || []); },
+    onFiles(ev) {
+      // A native file input replaces its selection on every pick and won't
+      // re-fire for the same file. Accumulate across picks, dedupe by
+      // name+size, and clear the input so re-selecting a file still registers.
+      const key = f => f.name + ":" + f.size;
+      const seen = new Set(this.uploadFiles.map(key));
+      Array.from(ev.target.files || []).forEach(f => {
+        if (!seen.has(key(f))) { this.uploadFiles.push(f); seen.add(key(f)); }
+      });
+      ev.target.value = "";
+    },
+    removeFile(i) { this.uploadFiles.splice(i, 1); },
     async runUpload() {
       if (this.busy) return;
       if (!this.pasteText.trim() && !this.uploadFiles.length) {

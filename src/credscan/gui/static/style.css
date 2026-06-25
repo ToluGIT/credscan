@@ -142,6 +142,19 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; background: var
 .brackets .opt.on { color: var(--accent); }
 .brackets .opt.off-locked { cursor: not-allowed; color: var(--text-dim); }
 
+/* Queued upload files */
+.filelist { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.filelist .chip { font-size: 12px; padding: 2px 8px; border: 1px solid var(--border-bright); color: var(--text-primary); }
+.filelist .chip .x { color: var(--text-muted); cursor: pointer; margin-left: 4px; }
+.filelist .chip .x:hover { color: var(--error); }
+.filelist .chip-clear { font-size: 12px; padding: 2px 8px; color: var(--text-muted); cursor: pointer; }
+.filelist .chip-clear:hover { color: var(--accent); }
+
+/* Collapsible scan options on the dashboard */
+.opt-toggle { margin-top: 14px; font-size: 13px; color: var(--text-muted); cursor: pointer; user-select: none; border-top: 1px solid var(--border); padding-top: 12px; }
+.opt-toggle:hover { color: var(--accent); }
+.opt-body { margin-top: 12px; }
+
 /* Command preview */
 .cmd-preview {
   background: var(--bg); border: 1px solid var(--border); padding: 12px;
