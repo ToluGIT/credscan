@@ -140,6 +140,7 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; background: var
 .brackets { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 8px 0; }
 .brackets .opt { cursor: pointer; font-size: 13px; color: var(--text-muted); user-select: none; }
 .brackets .opt.on { color: var(--accent); }
+.brackets .opt.off-locked { cursor: not-allowed; color: var(--text-dim); }
 
 /* Command preview */
 .cmd-preview {

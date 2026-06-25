@@ -69,7 +69,7 @@ createApp({
   },
   computed: {
     minConfidence() { return (this.minConfidencePct / 100).toFixed(2); },
-    statusWord() { return this.busy ? "● SCANNING" : (this.findings.length ? "● DONE" : "● READY"); },
+    statusWord() { return this.busy ? "SCANNING" : (this.findings.length ? "DONE" : "READY"); },
     statusContext() {
       if (this.busy) return "scanning " + this.scanPath;
       if (this.findings.length) return this.filesScanned + " files · " + this.findings.length + " findings";
@@ -77,10 +77,12 @@ createApp({
     },
     totalFindings() { return this.findings.length; },
     commandPreview() {
-      let c = "credscan --path " + (this.scanPath || ".") + " --min-confidence " + this.minConfidence;
+      // In public mode the input is uploaded content, not a server path.
+      const target = this.publicMode ? "(uploaded content)" : ("--path " + (this.scanPath || "."));
+      let c = "credscan " + target + " --min-confidence " + this.minConfidence;
       if (this.opts.no_context_analysis) c += " --no-context-analysis";
       if (this.opts.no_entropy) c += " --no-entropy";
-      if (this.validateLive) c += " --validate-aws --verify";
+      if (this.validateLive && !this.publicMode) c += " --validate-aws --verify";
       return c + " -o sarif";
     },
     severityRows() {
@@ -128,6 +130,9 @@ createApp({
       return "unverified";
     },
     quick(qa) { this.scanPath = qa.path; this.runScan(); },
+    // The Config tab's RUN button dispatches by mode: a path scan locally,
+    // an upload scan publicly (where path scanning is disabled).
+    runConfigured() { return this.publicMode ? this.runUpload() : this.runScan(); },
     filterBy(sev) { this.sevFilter = sev; this.screen = "report"; },
     resetConfig() {
       this.scanPath = "."; this.minConfidencePct = 50;
@@ -175,6 +180,8 @@ createApp({
       try {
         const fd = new FormData();
         fd.append("min_confidence", this.minConfidence);
+        fd.append("no_context_analysis", this.opts.no_context_analysis);
+        fd.append("no_entropy", this.opts.no_entropy);
         if (this.pasteText.trim()) fd.append("text", this.pasteText);
         this.uploadFiles.forEach(f => fd.append("files", f));
         const res = await fetch("/api/scan/upload", { method: "POST", body: fd });

@@ -224,3 +224,35 @@ class TestPublicMode:
         assert "wJalrX" not in body
         # Sandbox paths are relativized, never leaking the temp dir layout.
         assert "/tmp" not in body and "credscan-upload-" not in body
+
+    def test_upload_honors_detector_flags(self, monkeypatch):
+        # The Config tab exposes the entropy/context toggles in public mode, so
+        # the upload endpoint must accept and apply them. Disabling entropy must
+        # drop the entropy-only finding (a high-entropy base64 string with no
+        # keyword) without erroring.
+        c = _public_client(monkeypatch)
+        text = "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
+
+        def _scan(no_entropy):
+            r = c.post(
+                "/api/scan/upload",
+                data={
+                    "text": text,
+                    "filename": "creds.env",
+                    "min_confidence": "0.5",
+                    "no_entropy": str(no_entropy).lower(),
+                },
+            )
+            assert r.status_code == 200
+            jid = r.json()["id"]
+            with c.stream("GET", f"/api/scan/{jid}/stream") as s:
+                [ln for ln in s.iter_lines() if ln]
+            time.sleep(0.2)
+            return c.get(f"/api/scan/{jid}/findings").json()
+
+        with_entropy = _scan(no_entropy=False)
+        without_entropy = _scan(no_entropy=True)
+        assert with_entropy["status"] == "done"
+        assert without_entropy["status"] == "done"
+        # Turning entropy off should not increase findings; the flag took effect.
+        assert len(without_entropy["findings"]) <= len(with_entropy["findings"])

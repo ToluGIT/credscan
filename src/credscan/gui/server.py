@@ -376,6 +376,8 @@ def create_app() -> "FastAPI":
         text: str = Form(default=""),
         filename: str = Form(default="pasted.txt"),
         min_confidence: float = Form(default=0.5),
+        no_context_analysis: bool = Form(default=False),
+        no_entropy: bool = Form(default=False),
     ):
         """Scan uploaded files or pasted text in a sandboxed temp dir.
 
@@ -420,6 +422,10 @@ def create_app() -> "FastAPI":
             options = {
                 "min_confidence": min_confidence,
                 "explicit_files": explicit,
+                # Detector toggles only change scan sensitivity; they touch no
+                # path or network, so they are safe to expose in public mode.
+                "no_context_analysis": no_context_analysis,
+                "no_entropy": no_entropy,
             }
             job = ScanJob(
                 id=uuid.uuid4().hex[:12], path=sandbox, options=options, sandbox=sandbox
