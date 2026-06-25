@@ -647,14 +647,29 @@ def main():
 
     public = _is_public_mode()
     if args.host not in ("127.0.0.1", "localhost") and not public:
-        print(
-            f"WARNING: binding to {args.host} in LOCAL mode exposes filesystem "
-            f"path scanning on the network with no authentication. Use --public "
-            f"to host safely (upload-only), or bind to 127.0.0.1."
-        )
+        in_container = os.path.exists("/.dockerenv")
+        if in_container:
+            # Inside a container, binding 0.0.0.0 is normal — what matters is
+            # the HOST port mapping. Remind, don't cry wolf. flush so the notice
+            # is not lost in stdout buffering before uvicorn takes the stream.
+            print(
+                "NOTE: LOCAL mode exposes filesystem path scanning and key "
+                "validation with no authentication. Publish the port to "
+                "loopback only (docker run -p 127.0.0.1:8000:8000) so it is not "
+                "reachable from your network; never put this image on the open "
+                "internet (use the public image for that).",
+                flush=True,
+            )
+        else:
+            print(
+                f"WARNING: binding to {args.host} in LOCAL mode exposes filesystem "
+                f"path scanning on the network with no authentication. Use --public "
+                f"to host safely (upload-only), or bind to 127.0.0.1.",
+                flush=True,
+            )
 
     mode_label = "PUBLIC (upload-only)" if public else "LOCAL (path scanning)"
-    print(f"CredScan GUI [{mode_label}] -> http://{args.host}:{args.port}")
+    print(f"CredScan GUI [{mode_label}] -> http://{args.host}:{args.port}", flush=True)
     uvicorn.run(create_app(), host=args.host, port=args.port, log_level="info")
 
 

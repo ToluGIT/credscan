@@ -113,11 +113,17 @@ class AWSCredentialValidator:
                 }
             if "ExpiredToken" in err_str:
                 return {"valid": False, "key_type": key_type, "error": "Token expired"}
-            # Network/timeout — don't assume invalid
+            # Network/timeout — don't assume invalid. Log the full exception
+            # locally, but return a generic message: the raw boto3 error can
+            # carry endpoint/account detail and may surface in the GUI/report.
             logger.warning(
                 f"AWS validation network error for key {access_key_id[:8]}...: {e}"
             )
-            return {"valid": None, "key_type": key_type, "error": f"Network error: {e}"}
+            return {
+                "valid": None,
+                "key_type": key_type,
+                "error": "network error (could not reach AWS)",
+            }
 
     def enrich_findings(self, findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

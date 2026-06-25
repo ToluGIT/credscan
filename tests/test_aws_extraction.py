@@ -86,6 +86,29 @@ class TestEngineStoresBareToken:
                 assert not (isinstance(v, str) and "aws_access_key_id = " in v)
 
 
+class TestErrorSanitization:
+    def test_network_error_is_generic_not_raw_exception(self):
+        # A raw boto3/network exception can carry endpoint or account detail and
+        # would surface in the GUI/report via the validation field. The verdict
+        # must be a generic message, not the exception text.
+        v = AWSCredentialValidator({})
+        v._rate_limit = lambda: None
+
+        class _Boom:
+            def Session(self, **kw):
+                raise RuntimeError(
+                    "Could not connect to https://sts.internal.corp:8443 "
+                    "(account 999988887777 endpoint detail)"
+                )
+
+        v._boto3 = _Boom()
+        result = v.validate("AKIAY2K7MNQ4RST6UVWX", "x" * 40)
+        assert result["valid"] is None
+        assert "999988887777" not in result["error"]
+        assert "sts.internal.corp" not in result["error"]
+        assert result["error"] == "network error (could not reach AWS)"
+
+
 class TestValidatorPairing:
     def _mock_sts(self, valid):
         # Build a fake validate() result so no network/creds are needed.

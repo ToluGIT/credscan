@@ -17,7 +17,10 @@
 # For live AWS validation, also mount your AWS credentials read-only:
 #   -v "$HOME/.aws:/home/scanner/.aws:ro"
 # and toggle validate-live in the GUI options (calls sts:GetCallerIdentity,
-# read-only). See SECURITY.md for the threat model.
+# read-only; validation errors are returned generically, never the raw AWS
+# response, so endpoint/account detail is not leaked to the browser). Mount
+# only the profile you need and keep it :ro. See SECURITY.md for the threat
+# model.
 FROM python:3.12-slim
 
 WORKDIR /opt/credscan
