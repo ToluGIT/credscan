@@ -184,8 +184,8 @@ who would rather not use the CLI. It runs the same engine; the API masks every
 value, so no raw secret leaves the server.
 
 ```bash
-pip install -e ".[gui]"
-credscan-gui            # local mode, http://127.0.0.1:8000
+pip install -e ".[gui,aws]"   # aws extra adds boto3 for live key validation
+credscan-gui                  # local mode, http://127.0.0.1:8000
 ```
 
 ![CredScan GUI dashboard](docs/screenshots/credscan-gui-dashboard.png)
@@ -202,19 +202,26 @@ design system. Findings are returned masked (`AKIA...MPLE`), never raw.
 
 ### Two modes
 
-- **Local** (default): scans server-local filesystem paths. For running the
-  tool on your own machine.
+- **Local** (default): the full tool in the browser. Scans server-local paths,
+  walks git history, and runs live AWS key validation (with the `aws` extra).
+  For running on your own machine.
 - **Public** (`credscan-gui --public`, or `CREDSCAN_PUBLIC=1`): a hardened mode
-  for hosting on the open internet. Filesystem path scanning is disabled; the
-  only input is uploaded files or pasted text, which are scanned in a per-request
-  sandbox directory and deleted immediately. Hard limits bound every request
-  (2 MB, 200 files, 30 s, rate-limited). This exists because a publicly reachable
-  path scanner would let any visitor read the host's own filesystem.
+  for hosting on the open internet. Filesystem path scanning, git-history, and
+  live validation are disabled; the only input is uploaded files or pasted text,
+  scanned in a per-request sandbox directory and deleted immediately. Hard
+  limits bound every request (2 MB, 200 files, 30 s, rate-limited). This exists
+  because a publicly reachable path scanner would let any visitor read the
+  host's own filesystem, and live validation would make the server a
+  credential-checking oracle.
+
+The two modes ship as two separate images on purpose, so the public one is safe
+by construction rather than by a flag: the public image has no path access and
+does not even install `boto3`, so it cannot scan the host or validate keys no
+matter how it is configured.
 
 ### Hosting it publicly (Docker)
 
-The repo ships a hardened GUI image (`Dockerfile.gui`) that runs public mode as
-a non-root user:
+`Dockerfile.gui` runs the hardened public mode as a non-root user, upload-only:
 
 ```bash
 docker build -f Dockerfile.gui -t credscan-gui .
@@ -223,6 +230,24 @@ docker run -p 8000:8000 credscan-gui      # public mode, upload-only
 
 A `fly.toml` is included for a one-command deploy to Fly.io (`fly deploy`); any
 container host (Render, Railway) works the same way.
+
+### Running the full tool locally (Docker)
+
+To get the complete GUI (path scan + git-history + AWS validation) in a
+container on your own machine, use `Dockerfile.gui.local`. It runs local mode
+and includes `boto3`. Because local mode scans real paths and can validate
+keys, publish the port to loopback only so it is unreachable from the network:
+
+```bash
+docker build -f Dockerfile.gui.local -t credscan-gui-local .
+docker run --rm -p 127.0.0.1:8000:8000 \
+  -v "$PWD:/scan:ro" credscan-gui-local      # scan /scan in the GUI
+```
+
+Mount the directory to scan at `/scan`. For live AWS validation, also mount your
+credentials read-only (`-v "$HOME/.aws:/home/scanner/.aws:ro"`) and toggle
+validate-live in the GUI options. Do not expose this image on the open
+internet; that is what the public image above is for.
 
 ---
 

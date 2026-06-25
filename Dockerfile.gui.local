@@ -1,0 +1,45 @@
+# CredScan GUI image — LOCAL mode, full power, for your OWN machine only.
+#
+# Unlike Dockerfile.gui (the hardened public demo), this image runs in LOCAL
+# mode and includes boto3, so the browser UI can do everything the CLI can:
+# scan filesystem paths, walk git history, and run live AWS key validation.
+#
+# Because local mode scans real paths and can validate credentials, it is NOT
+# safe to expose on the open internet. Run it only on a trusted machine, and
+# publish the port to LOOPBACK so it is unreachable from the network:
+#
+#   docker build -f Dockerfile.gui.local -t credscan-gui-local .
+#   docker run --rm -p 127.0.0.1:8000:8000 \
+#     -v "$PWD:/scan:ro" credscan-gui-local
+#   # then open http://127.0.0.1:8000 and scan /scan
+#
+# Mount the repo or directory you want to scan at /scan (read-only is enough).
+# For live AWS validation, also mount your AWS credentials read-only:
+#   -v "$HOME/.aws:/home/scanner/.aws:ro"
+# and toggle validate-live in the GUI options (calls sts:GetCallerIdentity,
+# read-only). See SECURITY.md for the threat model.
+FROM python:3.12-slim
+
+WORKDIR /opt/credscan
+
+COPY setup.py setup.cfg pyproject.toml MANIFEST.in README.md ./
+COPY src/ ./src/
+
+# GUI extra plus the aws extra (boto3) so live validation works.
+RUN pip install --no-cache-dir ".[gui,aws]" \
+    && rm -rf /root/.cache
+
+# Non-root user. Mounted scan targets and ~/.aws should be mounted read-only.
+RUN useradd --create-home --uid 10001 scanner
+USER scanner
+
+# LOCAL mode: path scanning, git-history, and AWS validation are enabled.
+# This image is deliberately NOT public; do not set CREDSCAN_PUBLIC here.
+ENV CREDSCAN_PUBLIC=0
+
+EXPOSE 8000
+
+# Bind to all interfaces INSIDE the container; the run command above maps it to
+# 127.0.0.1 on the host so it is not reachable off-machine. credscan-gui prints
+# a warning if it is bound to a non-loopback host in local mode.
+CMD ["credscan-gui", "--host", "0.0.0.0", "--port", "8000"]
