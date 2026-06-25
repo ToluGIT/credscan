@@ -38,7 +38,7 @@
         <span v-if="s.id === 'report' && totalFindings" class="nav-badge">{{ totalFindings }}</span>
       </button>
 
-      <div class="side-sec" style="margin-top:20px">// what it scans</div>
+      <div class="side-sec" style="margin-top:20px">// inputs · file types it parses</div>
       <div class="side-list">
         <span class="side-row" v-for="t in fileTypes" :key="t">├─ {{ t }}</span>
       </div>
@@ -150,10 +150,10 @@
         </div>
       </div>
 
-      <!-- What it detects -->
+      <!-- What it detects: the OUTPUT half of the pipeline (inputs are in the sidebar) -->
       <div class="panel" style="margin-top:16px">
         <div class="sec-head"><span class="name">what-it-detects</span><span class="meta">[15+ categories]</span></div>
-        <div class="comment">// secret classes, matched by pattern + entropy + context</div>
+        <div class="comment">// inputs (sidebar) ──▸ scanned for these secret classes · pattern + entropy + context</div>
         <div class="brackets">
           <span class="opt on" v-for="c in detectCategories" :key="c">[✓] {{ c }}</span>
         </div>
