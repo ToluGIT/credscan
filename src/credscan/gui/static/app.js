@@ -10,6 +10,7 @@ createApp({
       screens: [
         { id: "dashboard", label: "Dashboard" },
         { id: "config", label: "Scan Config" },
+        { id: "advanced", label: "Advanced" },
         { id: "live", label: "Live Output" },
         { id: "report", label: "Findings" },
         { id: "baseline", label: "Baseline" },
@@ -18,6 +19,12 @@ createApp({
       minConfidencePct: 50,
       validateLive: false,
       opts: { no_context_analysis: false, no_entropy: false },
+      // advanced scans (git history, web endpoint)
+      historyPath: ".",
+      historyMaxCommits: 100,
+      historySince: "",
+      urlTarget: "",
+      urlCrawl: false,
       // mode (fetched from /api/mode)
       publicMode: false,
       maxBytes: 2097152,
@@ -107,6 +114,19 @@ createApp({
       return "█".repeat(n) + "░".repeat(20 - n);
     },
     shortFile(p) { return (p || "").split("/").slice(-2).join("/"); },
+    valClass(v) {
+      const s = (v || "").toUpperCase();
+      if (s.startsWith("ACTIVE")) return "val-active";
+      if (s.startsWith("INVALID")) return "val-invalid";
+      return "val-unknown";
+    },
+    valLabel(v) {
+      const s = (v || "").toUpperCase();
+      if (s.startsWith("ACTIVE")) return "● LIVE";
+      if (s.startsWith("INVALID")) return "○ REVOKED";
+      if (s.startsWith("SKIPPED")) return "skipped";
+      return "unverified";
+    },
     quick(qa) { this.scanPath = qa.path; this.runScan(); },
     filterBy(sev) { this.sevFilter = sev; this.screen = "report"; },
     resetConfig() {
@@ -170,6 +190,63 @@ createApp({
         this.pushLine("error: " + e.message, "err");
         this.busy = false;
       }
+    },
+    async runHistory() {
+      if (this.busy) return;
+      this.busy = true; this.liveLines = []; this.findings = [];
+      this.summary = { critical: 0, high: 0, medium: 0, low: 0 };
+      this.screen = "live";
+      try {
+        const res = await fetch("/api/scan/history", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            path: this.historyPath || ".",
+            max_commits: parseInt(this.historyMaxCommits, 10) || 100,
+            since: this.historySince || null,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: "history scan failed" }));
+          this.pushLine("error: " + (err.detail || res.status), "err");
+          this.busy = false; return;
+        }
+        const { id } = await res.json();
+        this.jobId = id;
+        this.streamScan(id);
+      } catch (e) {
+        this.pushLine("error: " + e.message, "err");
+        this.busy = false;
+      }
+    },
+    async runUrl() {
+      if (this.busy) return;
+      if (!this.urlTarget.trim()) { alert("enter a URL to scan"); return; }
+      this.busy = true; this.liveLines = []; this.findings = [];
+      this.summary = { critical: 0, high: 0, medium: 0, low: 0 };
+      this.screen = "live";
+      try {
+        const res = await fetch("/api/scan/url", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: this.urlTarget.trim(), crawl: this.urlCrawl }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: "url scan failed" }));
+          this.pushLine("error: " + (err.detail || res.status), "err");
+          this.busy = false; return;
+        }
+        const { id } = await res.json();
+        this.jobId = id;
+        this.streamScan(id);
+      } catch (e) {
+        this.pushLine("error: " + e.message, "err");
+        this.busy = false;
+      }
+    },
+    serverExport(fmt) {
+      // SARIF/compliance are generated server-side (masked) from the last scan;
+      // a plain GET lets the browser download the file directly.
+      if (!this.jobId) { alert("run a scan first"); return; }
+      window.location.href = "/api/scan/" + this.jobId + "/export?fmt=" + fmt;
     },
     streamScan(id) {
       const es = new EventSource("/api/scan/" + id + "/stream");

@@ -215,9 +215,16 @@ class Reporter:
             statistics: Dictionary of scan statistics
         """
         # Attach remediation guidance to each finding for the audit record.
+        # By default the CLI JSON is a full-value audit log (documented). When
+        # mask_values is set (the web GUI export does this), values are masked
+        # so the downloadable artifact can never carry a raw secret even if an
+        # upstream caller forgot to mask.
+        mask_values = self.config.get("mask_values", False)
         enriched = []
         for finding in findings:
             f = dict(finding)
+            if mask_values and f.get("value"):
+                f["value"] = self._mask_value(f["value"])
             f.setdefault("remediation", _remediation_for(finding))
             enriched.append(f)
 

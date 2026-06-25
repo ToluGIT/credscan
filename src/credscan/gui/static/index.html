@@ -154,6 +154,48 @@
     </div>
   </div>
 
+  <!-- ── Advanced (git-history · web endpoint) ───────────────── -->
+  <div v-show="screen === 'advanced'" class="fade-up">
+    <div class="prompt">
+      <span class="host">devops@credscan</span> <span class="dollar">$</span>
+      <span class="cmd"> credscan --scan-history | --url</span><span class="cursor"></span>
+    </div>
+    <div class="comment">// scan beyond the working tree: git history and live web endpoints</div>
+
+    <!-- Git history (local mode only: needs a repo on disk) -->
+    <div class="panel">
+      <div class="sec-head"><span class="name">git-history</span><span class="meta">[--scan-history]</span></div>
+      <div class="comment">// a secret deleted from code still lives in every clone's history</div>
+      <div v-if="publicMode" class="empty">disabled in public mode · needs a repository on disk</div>
+      <template v-else>
+        <div class="cli-row">
+          <span class="dollar">▸</span>
+          <input v-model="historyPath" placeholder="repo path  e.g. .">
+        </div>
+        <div class="cli-row" style="margin-top:8px">
+          <span class="lbl" style="color:var(--text-muted)">--max-commits</span>
+          <input v-model.number="historyMaxCommits" type="number" min="1" style="width:100px">
+          <span class="lbl" style="color:var(--text-muted)">--since</span>
+          <input v-model="historySince" placeholder="optional  e.g. 6 months ago" style="width:200px">
+        </div>
+        <div class="cmd-preview" style="margin-top:10px"><span class="dollar">$</span> credscan --scan-history --max-commits {{ historyMaxCommits || 100 }}{{ historySince ? ' --since "' + historySince + '"' : '' }}</div>
+        <button class="btn" :disabled="busy" @click="runHistory" style="margin-top:8px">SCAN HISTORY ▶</button>
+      </template>
+    </div>
+
+    <!-- Web endpoint (both modes; SSRF-guarded server-side) -->
+    <div class="panel">
+      <div class="sec-head"><span class="name">web-endpoint</span><span class="meta">[--url]</span></div>
+      <div class="comment">// fetch a public URL and scan its body for exposed credentials</div>
+      <div class="cli-row">
+        <span class="dollar">▸</span>
+        <input v-model="urlTarget" placeholder="https://example.com/static/app.js" @keyup.enter="runUrl">
+        <button class="btn" :disabled="busy" @click="runUrl">SCAN URL ▶</button>
+      </div>
+      <div class="comment" style="margin-top:8px">// only public http/https addresses · internal/metadata IPs are blocked</div>
+    </div>
+  </div>
+
   <!-- ── Live Output ─────────────────────────────────────────── -->
   <div v-show="screen === 'live'" class="fade-up">
     <div class="prompt">
@@ -199,8 +241,11 @@
         <input v-model="search" placeholder="⌕ search file/type" style="width:200px">
         <span style="color:var(--text-muted)">{{ filtered.length }} shown</span>
         <span class="export-row">
+          <span style="color:var(--text-muted)">EXPORT</span>
           <button class="btn-ghost" @click="exportData('json')">JSON</button>
           <button class="btn-ghost" @click="exportData('csv')">CSV</button>
+          <button class="btn-ghost" :disabled="!jobId" @click="serverExport('sarif')" title="server-side SARIF 2.1.0 (masked)">SARIF</button>
+          <button class="btn-ghost" :disabled="!jobId" @click="serverExport('compliance')" title="CWE/NIST/PCI/OWASP mapping (masked)">COMPLIANCE</button>
         </span>
       </div>
 
@@ -213,6 +258,8 @@
               <td>
                 <strong>{{ f.type }}</strong>
                 <span style="color:var(--text-muted)"> · {{ shortFile(f.file) }}:{{ f.line }} · {{ f.masked }}</span>
+                <span v-if="f.validation && f.validation !== 'not run'"
+                      class="valbadge" :class="valClass(f.validation)">{{ valLabel(f.validation) }}</span>
               </td>
               <td>{{ Math.round(f.confidence*100) }}%</td>
             </tr>

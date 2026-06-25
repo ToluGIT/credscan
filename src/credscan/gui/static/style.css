@@ -171,7 +171,14 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; background: var
 .kv .k { color: var(--text-muted); }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; font-size: 12px; }
 .filters select, .filters input { width: auto; }
-.export-row { margin-left: auto; display: flex; gap: 6px; }
+.export-row { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.btn-ghost:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Live-validation badge on a finding row */
+.valbadge { font-size: 10px; letter-spacing: 0.05em; padding: 1px 6px; margin-left: 8px; border: 1px solid currentColor; text-transform: uppercase; }
+.valbadge.val-active { color: var(--error); font-weight: 700; }
+.valbadge.val-invalid { color: var(--text-muted); }
+.valbadge.val-unknown { color: var(--text-muted); }
 
 /* Empty states */
 .empty { color: var(--text-muted); font-size: 13px; padding: 24px; text-align: center; border: 1px dashed var(--border-bright); }

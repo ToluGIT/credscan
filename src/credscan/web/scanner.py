@@ -3,16 +3,61 @@ Web scanner for detecting credentials in remote files and web content.
 """
 
 import concurrent.futures
+import ipaddress
 import json
 import logging
 import os
 import re
+import socket
 from typing import Any, Dict, List, Optional, Set
 from urllib.parse import urljoin, urlparse
 
 import requests
 
 logger = logging.getLogger(__name__)
+
+
+def _ip_is_blocked(ip_str: str) -> bool:
+    """True if an IP must not be fetched (internal/loopback/metadata ranges)."""
+    try:
+        ip = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return True  # un-parseable: refuse
+    return bool(
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+        or str(ip) == "169.254.169.254"
+    )
+
+
+def destination_blocked(url: str) -> Optional[str]:
+    """Return a reason if a URL's host resolves to a non-public address.
+
+    Validates EVERY resolved address (an attacker may return a public and a
+    private record), so a single internal answer blocks the fetch. Used both as
+    a pre-flight guard and re-checked on every redirect hop to defeat
+    redirect-based and (within a single call) DNS-rebinding SSRF.
+    """
+    parsed = urlparse(url if "://" in url else "http://" + url)
+    if parsed.scheme not in ("http", "https"):
+        return "only http/https URLs are allowed"
+    host = parsed.hostname
+    if not host:
+        return "no host in URL"
+    if host.lower() in ("localhost", "metadata.google.internal"):
+        return "internal host blocked"
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except Exception:
+        return "could not resolve host"
+    for info in infos:
+        if _ip_is_blocked(info[4][0]):
+            return f"non-public address blocked ({info[4][0]})"
+    return None
 
 
 class WebScanner:
@@ -26,6 +71,11 @@ class WebScanner:
         self.user_agent = config.get(
             "web_user_agent", "Mozilla/5.0 (compatible; CredScan/1.0)"
         )
+        # When set (the web GUI sets it), refuse internal/loopback/metadata
+        # targets and re-validate on every redirect hop, so the URL scanner
+        # cannot be turned into an SSRF probe of the host's network.
+        self.block_private = config.get("block_private_addresses", False)
+        self.max_redirects = config.get("web_max_redirects", 5)
 
         # Load patterns and false positives
         self.patterns = self._load_patterns()
@@ -172,6 +222,34 @@ class WebScanner:
             url = f"http://{parsed.path}"
         return url
 
+    def _safe_get(self, url: str, headers: Dict[str, str]):
+        """GET a URL with SSRF protection: validate the target on every hop and
+        follow redirects manually so a redirect to an internal host is refused.
+
+        Returns the final Response, or None if a hop was blocked or errored.
+        """
+        current = url
+        for _ in range(self.max_redirects + 1):
+            blocked = destination_blocked(current)
+            if blocked:
+                logger.warning(f"refusing to fetch {current}: {blocked}")
+                return None
+            resp = requests.get(
+                current,
+                timeout=self.timeout,
+                headers=headers,
+                allow_redirects=False,
+            )
+            if resp.is_redirect or resp.status_code in (301, 302, 303, 307, 308):
+                location = resp.headers.get("Location")
+                if not location:
+                    return resp
+                current = urljoin(current, location)
+                continue
+            return resp
+        logger.warning(f"too many redirects starting at {url}")
+        return None
+
     def scan_url(self, url: str) -> List[Dict[str, Any]]:
         """
         Scan a single URL for credentials.
@@ -187,9 +265,14 @@ class WebScanner:
 
         try:
             headers = {"User-Agent": self.user_agent}
-            response = requests.get(
-                normalized_url, timeout=self.timeout, headers=headers
-            )
+            if self.block_private:
+                response = self._safe_get(normalized_url, headers)
+            else:
+                response = requests.get(
+                    normalized_url, timeout=self.timeout, headers=headers
+                )
+            if response is None:
+                return results
 
             if response.status_code not in [200, 301, 302]:
                 logger.debug(f"URL {url} returned status {response.status_code}")
