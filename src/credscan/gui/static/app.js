@@ -75,20 +75,22 @@ createApp({
       return c + " -o sarif";
     },
     severityCards() {
-      // Bar level = this severity's share of the largest bucket (relative fill).
-      const max = Math.max(1, ...Object.values(this.summary));
+      // Bar length = this severity's share of ALL findings in the scan, so the
+      // bars together read as the severity mix (HIGH 16/22 -> a long bar).
+      const total = Object.values(this.summary).reduce((a, b) => a + b, 0);
       return ["critical", "high", "medium", "low"].map(k => {
         const count = this.summary[k] || 0;
-        let delta = "no scan yet";
+        // Delta is the only status line, and only after a second scan: it
+        // compares this scan to the immediately prior one. No "open"/"closed"
+        // lifecycle is shown because the GUI has no close action.
+        let delta = "";
         if (this.prevSummary) {
           const d = count - (this.prevSummary[k] || 0);
           delta = d > 0 ? "↑" + d + " vs last" : (d < 0 ? "↓" + (-d) + " vs last" : "no change");
-        } else if (this.findings.length || this.summary[k]) {
-          delta = count ? "open" : "—";
         }
         return {
           key: k, label: k.toUpperCase(), count,
-          pct: Math.round((count / max) * 100), delta,
+          pct: total ? Math.round((count / total) * 100) : 0, delta,
         };
       });
     },

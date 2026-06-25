@@ -130,7 +130,7 @@ input::placeholder { color: var(--text-dim); }
 .sev-card-head { font-size: 11px; letter-spacing: 0.08em; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
 .sev-card-head .sq { width: 9px; height: 9px; display: inline-block; background: currentColor; }
 .sev-card-num { font-size: 32px; font-weight: 700; line-height: 1.1; margin: 6px 0 10px; }
-.sev-card-delta { color: var(--text-muted); font-size: 11px; margin-top: 8px; }
+.sev-card-delta { color: var(--text-muted); font-size: 11px; margin-top: 4px; }
 /* Per-severity color: card top border, label, number, and bar fill */
 .sev-card.sc-critical { border-top-color: var(--crit); }
 .sev-card.sc-critical .sev-card-head, .sev-card.sc-critical .sev-card-num { color: var(--crit); }
@@ -144,8 +144,10 @@ input::placeholder { color: var(--text-dim); }
 .sev-card.sc-low { border-top-color: var(--low); }
 .sev-card.sc-low .sev-card-head, .sev-card.sc-low .sev-card-num { color: var(--low); }
 .sev-card.sc-low .bar-fill { background: var(--low); }
-.bar-track { height: 6px; background: var(--bg-raised); border: 1px solid var(--border); }
-.bar-fill { height: 100%; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+.bar-track { height: 6px; background: var(--bg-raised); border: 1px solid var(--border); overflow: hidden; }
+/* block so width/height apply; min-width keeps a nonzero count visible */
+.bar-fill { display: block; height: 100%; min-width: 2px; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+.sev-card-pct { color: var(--text-muted); font-size: 11px; margin-top: 4px; }
 /* severity text colors used elsewhere (pills, live rows) */
 .sev-critical { color: var(--crit); } .sev-high { color: var(--high); }
 .sev-medium { color: var(--med); } .sev-low { color: var(--low); }

@@ -137,16 +137,17 @@
       <!-- Severity cards -->
       <div class="sec-head" style="margin-top:8px">
         <span class="name">severity-summary</span>
-        <span class="meta">[{{ totalFindings }} open] [{{ baseline.length }} suppressed]</span>
+        <span class="meta">[{{ totalFindings }} findings] [{{ baseline.length }} suppressed]</span>
       </div>
-      <div class="comment">// open findings by severity — click a card to filter the report</div>
+      <div class="comment">// findings by severity · bar = share of all findings · click a card to filter</div>
       <div class="sev-cards">
         <div class="sev-card" v-for="c in severityCards" :key="c.key"
              :class="'sc-'+c.key" @click="filterBy(c.key)">
           <div class="sev-card-head"><i class="sq"></i>{{ c.label }}</div>
           <div class="sev-card-num">{{ c.count }}</div>
-          <div class="bar-track"><span class="bar-fill" :style="{width: c.pct+'%'}"></span></div>
-          <div class="sev-card-delta">{{ c.delta }}</div>
+          <div class="bar-track"><span class="bar-fill" :style="{width: c.pct+'%', minWidth: c.count ? '2px' : '0'}"></span></div>
+          <div class="sev-card-pct">{{ c.pct }}% of findings</div>
+          <div class="sev-card-delta" v-if="c.delta">{{ c.delta }}</div>
         </div>
       </div>
 
