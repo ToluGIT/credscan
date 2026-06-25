@@ -4,15 +4,13 @@ const { createApp } = Vue;
 createApp({
   data() {
     return {
-      version: "1.0.1",
-      engineStatus: "ONLINE",
       screen: "dashboard",
       screens: [
-        { id: "dashboard", label: "Dashboard" },
-        { id: "advanced", label: "Advanced" },
-        { id: "live", label: "Live Output" },
-        { id: "report", label: "Findings" },
-        { id: "baseline", label: "Baseline" },
+        { id: "dashboard", label: "dashboard", sub: "credscan status" },
+        { id: "advanced", label: "advanced", sub: "history · url" },
+        { id: "live", label: "live output", sub: "scan --stream" },
+        { id: "report", label: "findings", sub: "report --last" },
+        { id: "baseline", label: "baseline", sub: "baseline list" },
       ],
       scanPath: ".",
       minConfidencePct: 50,
@@ -47,18 +45,14 @@ createApp({
         "OpenAI/Anthropic", "private keys (PEM)", "JWT", "DB connection strings",
         "passwords", "OAuth secrets",
       ],
-      cliCapabilities: [
-        { k: "git-history scan", v: "credscan --scan-history" },
-        { k: "web endpoint scan", v: "credscan --url <URL>" },
-        { k: "live AWS validation", v: "credscan --validate-aws" },
-        { k: "incremental / staged", v: "credscan --staged" },
-        { k: "SARIF + compliance export", v: "-o sarif,compliance" },
-      ],
+      enginePlaceholder: "—",
+      lastScanAt: "",
       busy: false,
       jobId: null,
       liveLines: [],
       findings: [],
       summary: { critical: 0, high: 0, medium: 0, low: 0 },
+      prevSummary: null,  // previous scan's counts, for an honest "vs last" delta
       filesScanned: 0,
       filesFound: 0,
       baseline: [],
@@ -70,11 +64,6 @@ createApp({
   computed: {
     minConfidence() { return (this.minConfidencePct / 100).toFixed(2); },
     statusWord() { return this.busy ? "SCANNING" : (this.findings.length ? "DONE" : "READY"); },
-    statusContext() {
-      if (this.busy) return "scanning " + this.scanPath;
-      if (this.findings.length) return this.filesScanned + " files · " + this.findings.length + " findings";
-      return "idle · 1 worker · queue 0";
-    },
     totalFindings() { return this.findings.length; },
     commandPreview() {
       // In public mode the input is uploaded content, not a server path.
@@ -85,13 +74,23 @@ createApp({
       if (this.validateLive && !this.publicMode) c += " --validate-aws --verify";
       return c + " -o sarif";
     },
-    severityRows() {
-      const colors = { critical: "#EF4444", high: "#F59E0B", medium: "#06B6D4", low: "#5C5C5C" };
+    severityCards() {
+      // Bar level = this severity's share of the largest bucket (relative fill).
       const max = Math.max(1, ...Object.values(this.summary));
-      return ["critical", "high", "medium", "low"].map(k => ({
-        key: k, label: k.toUpperCase(), count: this.summary[k] || 0,
-        pct: Math.round(((this.summary[k] || 0) / max) * 100), color: colors[k],
-      }));
+      return ["critical", "high", "medium", "low"].map(k => {
+        const count = this.summary[k] || 0;
+        let delta = "no scan yet";
+        if (this.prevSummary) {
+          const d = count - (this.prevSummary[k] || 0);
+          delta = d > 0 ? "↑" + d + " vs last" : (d < 0 ? "↓" + (-d) + " vs last" : "no change");
+        } else if (this.findings.length || this.summary[k]) {
+          delta = count ? "open" : "—";
+        }
+        return {
+          key: k, label: k.toUpperCase(), count,
+          pct: Math.round((count / max) * 100), delta,
+        };
+      });
     },
     reportSummary() {
       if (!this.findings.length) return "no scan yet · run one from the dashboard";
@@ -134,6 +133,8 @@ createApp({
     async runScan() {
       if (this.busy) return;
       this.busy = true; this.liveLines = []; this.findings = [];
+      // Remember the prior scan's counts for an honest "vs last" delta.
+      if (this.lastScanAt) this.prevSummary = { ...this.summary };
       this.summary = { critical: 0, high: 0, medium: 0, low: 0 };
       this.screen = "live";
       try {
@@ -179,6 +180,8 @@ createApp({
         return;
       }
       this.busy = true; this.liveLines = []; this.findings = [];
+      // Remember the prior scan's counts for an honest "vs last" delta.
+      if (this.lastScanAt) this.prevSummary = { ...this.summary };
       this.summary = { critical: 0, high: 0, medium: 0, low: 0 };
       this.screen = "live";
       try {
@@ -205,6 +208,8 @@ createApp({
     async runHistory() {
       if (this.busy) return;
       this.busy = true; this.liveLines = []; this.findings = [];
+      // Remember the prior scan's counts for an honest "vs last" delta.
+      if (this.lastScanAt) this.prevSummary = { ...this.summary };
       this.summary = { critical: 0, high: 0, medium: 0, low: 0 };
       this.screen = "live";
       try {
@@ -233,6 +238,8 @@ createApp({
       if (this.busy) return;
       if (!this.urlTarget.trim()) { alert("enter a URL to scan"); return; }
       this.busy = true; this.liveLines = []; this.findings = [];
+      // Remember the prior scan's counts for an honest "vs last" delta.
+      if (this.lastScanAt) this.prevSummary = { ...this.summary };
       this.summary = { critical: 0, high: 0, medium: 0, low: 0 };
       this.screen = "live";
       try {
@@ -283,6 +290,7 @@ createApp({
       this.summary = data.summary || this.summary;
       this.filesScanned = data.files_scanned || 0;
       this.filesFound = data.files_found || 0;
+      this.lastScanAt = new Date().toTimeString().slice(0, 8);
     },
     pushLine(text, cls) {
       this.liveLines.push({ text, cls: cls || "" });
@@ -330,8 +338,8 @@ createApp({
     this.tick();
     setInterval(this.tick, 1000);
     fetch("/api/health").then(r => r.json()).then(d => {
-      if (d.status === "ok") this.engineStatus = "ONLINE";
-    }).catch(() => { this.engineStatus = "OFFLINE"; });
+      if (d.status === "ok") this.enginePlaceholder = "ok";
+    }).catch(() => { this.enginePlaceholder = "offline"; });
     fetch("/api/mode").then(r => r.json()).then(d => {
       this.publicMode = !!d.public;
       this.maxBytes = d.max_bytes || this.maxBytes;
