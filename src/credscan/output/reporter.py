@@ -241,12 +241,19 @@ class Reporter:
             # Verification summary: the killer honest metric. Only shown when a
             # verify/validate run actually attached verdicts.
             vstats = verification_stats(findings)
-            if vstats["verifiable"] > 0:
+            if vstats["live"] > 0:
                 print(
                     f"\n{c['bold']}Verification:{c['reset']} "
                     f"{c['red']}{vstats['live']} live{c['reset']} / "
                     f"{vstats['verifiable']} verifiable "
                     f"({vstats['live_rate']:.0%} confirmed active)"
+                )
+            elif vstats["verifiable"] > 0:
+                # We checked and none were live — a useful, non-alarming fact.
+                print(
+                    f"\n{c['bold']}Verification:{c['reset']} "
+                    f"0 live / {vstats['verifiable']} verifiable "
+                    f"(none confirmed active)"
                 )
             if vstats["breached"] > 0:
                 print(

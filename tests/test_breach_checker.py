@@ -106,3 +106,26 @@ class TestEnrichFindings:
         # An exposed (publicly-known) secret is escalated to at least high.
         assert pw["severity"] == "high"
         assert "breach_exposure" not in out[1]
+
+    def test_password_named_after_provider_is_still_correlated(self):
+        # A real password whose name contains a provider word (aws_db_password)
+        # is a password, not an AWS key, so it must still be breach-correlated.
+        c = BreachChecker({})
+        assert c._is_correlatable(
+            {"rule_name": "Aws Db Password", "variable": "aws_db_password"}
+        )
+
+    def test_provider_secret_key_not_correlated(self):
+        # "stripe secret key" is a provider key, not a password: the weak
+        # "secret" hint must not pull it into password-breach correlation.
+        c = BreachChecker({})
+        assert not c._is_correlatable(
+            {"rule_name": "Stripe Secret Key", "pattern_category": "stripe"}
+        )
+
+    def test_bare_client_secret_is_correlated(self):
+        # A bare client_secret (no provider marker) is in scope.
+        c = BreachChecker({})
+        assert c._is_correlatable(
+            {"rule_name": "Client Secret", "variable": "client_secret"}
+        )

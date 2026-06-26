@@ -29,12 +29,15 @@ _API = "https://api.pwnedpasswords.com/range/"
 _MIN_INTERVAL_SECONDS = 1.5  # be a polite client of a free service
 _TIMEOUT_SECONDS = 8
 
-# Correlate password-like findings (passwords/passphrases/generic secrets) — the
-# classes a leaked-PASSWORD corpus could plausibly contain. The HIBP Pwned
-# Passwords corpus is passwords, not provider keys, so structured credentials
-# (AWS/GCP/GitHub keys, PEM material) are excluded: they are served by live
-# verification, and hashing them against a password corpus is meaningless.
-_CORRELATABLE_HINTS = ("password", "passwd", "passphrase", "secret", "credential")
+# Unambiguous password hints: a finding naming one of these is a password, so
+# it is breach-correlatable even if a provider name also appears (e.g.
+# "aws_db_password" is still a password). These always win.
+_PASSWORD_HINTS = ("password", "passwd", "passphrase")
+
+# Weaker hints: "secret"/"credential" are correlatable ONLY when the finding is
+# not also a structured provider key. This avoids hashing e.g. a "stripe secret
+# key" against a PASSWORD corpus, while still catching a bare "client_secret".
+_GENERIC_HINTS = ("secret", "credential")
 
 # Findings whose category/name marks them as a structured provider key or
 # crypto material — never breach-correlated even if the name contains "secret".
@@ -135,11 +138,16 @@ class BreachChecker:
             str(finding.get(k, ""))
             for k in ("rule_name", "type", "variable", "pattern_category")
         ).lower()
-        # Structured provider keys / crypto material are out of scope (wrong
-        # corpus), even when their name contains "key" or "secret".
+        # An explicit password is always correlatable, even if a provider name
+        # also appears (e.g. "aws_db_password" is a password, not an AWS key).
+        if any(h in haystack for h in _PASSWORD_HINTS):
+            return True
+        # Otherwise a structured provider key / crypto material is out of scope
+        # (wrong corpus) even when its name contains "secret"/"key".
         if any(h in haystack for h in _STRUCTURED_HINTS):
             return False
-        return any(h in haystack for h in _CORRELATABLE_HINTS)
+        # A bare "secret"/"credential" with no provider marker is correlatable.
+        return any(h in haystack for h in _GENERIC_HINTS)
 
     def enrich_findings(self, findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Attach a breach-exposure verdict to correlatable findings.
