@@ -545,18 +545,37 @@ class Reporter:
         except Exception as e:
             logger.error(f"Error writing CSV report: {e}")
 
+    def _verification_status(self, finding: Dict[str, Any]) -> str:
+        """Audit-friendly verification verdict for a finding."""
+        v = finding.get("verification") or finding.get("aws_validation")
+        if not v:
+            return "not verified"
+        if v.startswith("ACTIVE"):
+            return "VERIFIED LIVE"
+        if v.startswith("INVALID"):
+            return "verified inactive"
+        if v.startswith("SKIPPED"):
+            return "not verified"
+        return "verification inconclusive"
+
     def report_compliance(
         self, findings: List[Dict[str, Any]], statistics: Dict[str, Any]
     ):
         """Write a control-mapped compliance report (CSV via stdlib csv).
 
-        Each row maps a finding to the security controls it implicates
-        (CWE / NIST 800-53 / PCI-DSS / OWASP ASVS) and the remediation step.
+        This is an auditor's artifact, so it is denormalized to one row per
+        (finding x implicated control): an auditor can filter/pivot by the
+        Framework column (PCI-DSS, NIST, SOC 2, ...). Each row carries a stable
+        Finding ID (so it can be referenced across scans), the verification
+        status (a confirmed-live key is a materially worse finding than an
+        unverified match), the confidence, and the remediation. A provenance
+        header records when/what/which tool version produced the report.
         Values are masked; this report is for auditors, not for secrets.
         """
         import csv
 
-        from credscan.compliance import controls_for
+        from credscan import __version__
+        from credscan.compliance import control_rows_for
 
         os.makedirs(self.output_directory, exist_ok=True)
         output_file = os.path.join(
@@ -566,30 +585,67 @@ class Reporter:
         try:
             with open(output_file, "w", newline="") as f:
                 writer = csv.writer(f)
+                # Provenance header (commented rows so the CSV still parses).
+                writer.writerow(["# CredScan compliance report"])
                 writer.writerow(
                     [
+                        "# Generated",
+                        datetime.datetime.now().isoformat(timespec="seconds"),
+                    ]
+                )
+                writer.writerow(["# Tool version", __version__])
+                writer.writerow(
+                    ["# Files scanned", statistics.get("files_scanned", "")]
+                )
+                writer.writerow(["# Findings", len(findings)])
+                writer.writerow([])
+
+                writer.writerow(
+                    [
+                        "Finding ID",
+                        "Framework",
+                        "Control",
+                        "Requirement",
+                        "Severity",
+                        "Verification",
+                        "Confidence",
+                        "Finding",
                         "File",
                         "Line",
-                        "Severity",
-                        "Finding",
                         "Masked Value",
-                        "Controls",
                         "Remediation",
                     ]
                 )
                 for finding in findings:
-                    controls = "; ".join(controls_for(finding))
-                    writer.writerow(
-                        [
-                            finding.get("path", ""),
-                            finding.get("line", ""),
-                            finding.get("severity", "medium"),
-                            finding.get("rule_name", ""),
-                            self._mask_value(finding.get("value", "")),
-                            controls,
-                            _remediation_text(finding),
-                        ]
+                    fid = self._partial_fingerprint(finding)[:12]
+                    sev = finding.get("severity", "medium")
+                    verification = self._verification_status(finding)
+                    conf = finding.get(
+                        "overall_confidence", finding.get("confidence", "")
                     )
+                    conf_str = f"{float(conf):.2f}" if conf != "" else ""
+                    masked = self._mask_value(finding.get("value", ""))
+                    remediation = _remediation_text(finding)
+                    rule = finding.get("rule_name", "")
+                    path = finding.get("path", "")
+                    line = finding.get("line", "")
+                    for ctrl in control_rows_for(finding):
+                        writer.writerow(
+                            [
+                                fid,
+                                ctrl["framework"],
+                                ctrl["control"],
+                                ctrl["requirement"],
+                                sev,
+                                verification,
+                                conf_str,
+                                rule,
+                                path,
+                                line,
+                                masked,
+                                remediation,
+                            ]
+                        )
             logger.info(f"Compliance report saved to {output_file}")
             print(f"\nCompliance report saved to {output_file}")
         except Exception as e:

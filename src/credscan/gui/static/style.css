@@ -9,7 +9,10 @@
   --text-primary: #E0E0E0; --text-muted: #5C5C5C; --text-dim: #333333;
   --accent: #00FF14; --accent-dim: rgba(0, 255, 20, 0.08);
   --warn: #F59E0B; --error: #EF4444;
-  --crit: #EF4444; --high: #F59E0B; --med: #06B6D4; --low: #5C5C5C;
+  /* Severity heat ramp: warm hues only, luminance descending with severity
+     (red -> amber -> gold -> grey). No cool/blue hue, which breaks the heat
+     metaphor and reads as a generic "info" badge. */
+  --crit: #F2545B; --high: #E8883A; --med: #C99A2E; --low: #6B7076;
 }
 
 body {
