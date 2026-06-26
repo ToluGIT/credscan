@@ -155,6 +155,11 @@ input::placeholder { color: var(--text-dim); }
 .sev-critical { color: var(--crit); } .sev-high { color: var(--high); }
 .sev-medium { color: var(--med); } .sev-low { color: var(--low); }
 
+/* Visible validate-live toggle (a headline capability, not buried in options) */
+.validate-toggle { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; cursor: pointer; font-size: 13px; color: var(--text-primary); user-select: none; }
+.validate-toggle input { width: auto; accent-color: var(--accent); cursor: pointer; }
+.validate-toggle .vt-hint { color: var(--text-muted); font-size: 11px; }
+
 /* Data rows / coverage */
 .drow { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; font-size: 13px; padding: 3px 0; }
 .drow .k { color: var(--text-muted); }

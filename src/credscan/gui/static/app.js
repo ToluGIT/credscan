@@ -29,12 +29,8 @@ createApp({
       maxFiles: 200,
       pasteText: "",
       uploadFiles: [],
-      quickActions: [
-        { glyph: "▸", label: "SCAN DIR", path: "." },
-        { glyph: "◆", label: "SCAN demo/", path: "demo" },
-        { glyph: "⬢", label: "SCAN src/", path: "src" },
-        { glyph: "▣", label: "SCAN tests/", path: "tests" },
-      ],
+      scanRoot: "",          // server's scan root (e.g. /scan), from /api/context
+      quickActions: [],      // built from the dirs actually present at the root
       fileTypes: [
         ".tf / .tfvars", "CloudFormation", ".github/workflows", ".gitlab-ci.yml",
         "Jenkinsfile", "Dockerfile", ".env", "JSON", "YAML",
@@ -346,6 +342,16 @@ createApp({
       this.publicMode = !!d.public;
       this.maxBytes = d.max_bytes || this.maxBytes;
       this.maxFiles = d.max_files || this.maxFiles;
+      // In local mode, learn the real scan root and build quick-actions from
+      // the directories that actually exist there (not hardcoded folders).
+      if (!this.publicMode) {
+        fetch("/api/context").then(r => r.json()).then(c => {
+          this.scanRoot = c.root || "";
+          this.quickActions = (c.dirs || []).slice(0, 6).map(name => ({
+            label: name + "/", path: name,
+          }));
+        }).catch(() => {});
+      }
     }).catch(() => {});
   },
 }).mount("#app");

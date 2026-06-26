@@ -112,6 +112,23 @@ class TestMode:
         assert m["max_bytes"] > 0 and m["max_files"] > 0
 
 
+class TestContext:
+    def test_context_reports_root_and_real_dirs(self, client):
+        # Local mode exposes the scan root + the dirs that actually exist there,
+        # so the GUI can build quick-actions instead of hardcoding folders.
+        c = client.get("/api/context").json()
+        assert c["root"]
+        assert isinstance(c["dirs"], list)
+        # The repo's own dirs are present (the test runs from the repo root).
+        assert "src" in c["dirs"] or "tests" in c["dirs"]
+
+    def test_context_empty_in_public_mode(self, monkeypatch):
+        monkeypatch.setenv("CREDSCAN_PUBLIC", "1")
+        pc = TestClient(create_app())
+        c = pc.get("/api/context").json()
+        assert c["root"] is None and c["dirs"] == []
+
+
 class TestExport:
     """Server-side report generation (#30). Exports are MASKED."""
 

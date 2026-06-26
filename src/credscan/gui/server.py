@@ -75,6 +75,18 @@ def _is_public_mode() -> bool:
     return os.environ.get("CREDSCAN_PUBLIC", "").strip().lower() in ("1", "true", "yes")
 
 
+def _scan_root() -> str:
+    """The base directory local-mode relative paths resolve against.
+
+    In the container the user mounts their code at /scan; the process working
+    directory is the installed package, which is not what they want to scan. So
+    prefer a populated /scan, else fall back to the working directory.
+    """
+    if os.path.isdir("/scan") and os.listdir("/scan"):
+        return "/scan"
+    return os.getcwd()
+
+
 @dataclass
 class ScanJob:
     id: str
@@ -353,6 +365,31 @@ def create_app() -> "FastAPI":
             "max_files": _PUBLIC_MAX_FILES,
         }
 
+    @app.get("/api/context")
+    def context():
+        """Local-mode scan context: the root to scan and its top-level dirs.
+
+        The GUI uses this to default the path input and build quick-scan
+        buttons from what is ACTUALLY present, instead of hardcoded folders.
+        In the container the user mounts their code at /scan, so we prefer that
+        over the process working directory (which is the installed package).
+        Returns nothing useful in public mode (no filesystem access).
+        """
+        if public_mode:
+            return {"root": None, "dirs": []}
+        root = _scan_root()
+        dirs = []
+        try:
+            for name in sorted(os.listdir(root)):
+                if name.startswith("."):
+                    continue
+                full = os.path.join(root, name)
+                if os.path.isdir(full):
+                    dirs.append(name)
+        except OSError:
+            pass
+        return {"root": root, "dirs": dirs[:12]}
+
     @app.post("/api/scan")
     def start_scan(req: ScanRequest):
         if public_mode:
@@ -361,7 +398,14 @@ def create_app() -> "FastAPI":
                 status_code=403,
                 detail="path scanning is disabled in public mode; upload files instead",
             )
-        path = os.path.abspath(os.path.expanduser(req.path))
+        # Resolve relative paths against the scan root (the user's mounted code
+        # at /scan), not the process cwd (the installed package). So "." scans
+        # what the user provided, which is what they expect.
+        raw = os.path.expanduser(req.path)
+        if os.path.isabs(raw):
+            path = os.path.abspath(raw)
+        else:
+            path = os.path.abspath(os.path.join(_scan_root(), raw))
         if not os.path.exists(path):
             raise HTTPException(status_code=400, detail=f"path not found: {req.path}")
         options = req.model_dump() if hasattr(req, "model_dump") else req.dict()
