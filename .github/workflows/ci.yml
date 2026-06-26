@@ -11,6 +11,9 @@ jobs:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      # One version failing should not cancel the others; we want to see
+      # results across the whole matrix.
+      fail-fast: false
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
 
