@@ -1,4 +1,5 @@
 """Tests for incremental/diff scanning and the bounded file cache."""
+
 import os
 import subprocess
 
@@ -9,8 +10,7 @@ from credscan.diff import changed_files
 
 
 def _git(args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True,
-                   capture_output=True, text=True)
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
 
 @pytest.fixture
@@ -28,7 +28,9 @@ def git_repo(tmp_path):
 
 class TestChangedFiles:
     def test_staged_files_only(self, git_repo):
-        (git_repo / "leak.py").write_text('AWS_ACCESS_KEY_ID = "AKIAY2K7MNQ4RST6UVWX"\n')
+        (git_repo / "leak.py").write_text(
+            'AWS_ACCESS_KEY_ID = "AKIAY2K7MNQ4RST6UVWX"\n'
+        )
         _git(["add", "leak.py"], str(git_repo))
         files = changed_files(scan_path=str(git_repo))
         assert len(files) == 1
@@ -67,6 +69,7 @@ class TestChangedFiles:
 class TestExplicitFilesScan:
     def test_engine_scans_only_explicit_files(self, git_repo):
         from credscan.core.engine import ScanEngine
+
         (git_repo / "a.py").write_text("a = 1\n")
         (git_repo / "b.py").write_text("b = 2\n")
         only = [str(git_repo / "a.py")]

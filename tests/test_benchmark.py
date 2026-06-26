@@ -4,6 +4,7 @@ This runs the same harness as benchmarks/run.py and asserts precision/recall
 do not regress below a threshold. It is the gate that stops detection quality
 from silently degrading.
 """
+
 import json
 import os
 import subprocess
@@ -22,7 +23,10 @@ def test_benchmark_meets_quality_floor():
     env["PYTHONPATH"] = str(REPO_ROOT / "src")
     proc = subprocess.run(
         [sys.executable, str(RUN), "--json"],
-        capture_output=True, text=True, env=env, timeout=300,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=300,
     )
     assert proc.returncode == 0, f"benchmark run failed:\n{proc.stderr}"
     result = json.loads(proc.stdout)

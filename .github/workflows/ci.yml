@@ -114,7 +114,9 @@ jobs:
           python-version: "3.12"
 
       - name: Install lint tools
-        run: pip install black isort
+        # Pinned so CI and the local dev extra format identically; an
+        # unpinned upgrade should not silently fail an unrelated PR.
+        run: pip install black==26.5.1 isort==8.0.1
 
       - name: Check formatting (black)
         run: black --check src/

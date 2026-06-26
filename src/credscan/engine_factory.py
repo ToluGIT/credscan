@@ -6,6 +6,7 @@ non-CLI caller). It mirrors the parser/analyzer registration and enhanced +
 context-aware wrapping that the CLI performs, but takes a config dict instead of
 argparse arguments so it has no CLI dependency.
 """
+
 from typing import Any, Dict
 
 
@@ -16,6 +17,7 @@ def build_scan_engine(config: Dict[str, Any]):
       no_binary_parsing, enable_entropy, enable_context_analysis, and the
       enhanced-detection settings consumed by EnhancedConfig.
     """
+    from credscan.analyzers.entropy import EntropyAnalyzer
     from credscan.core.engine import ScanEngine
     from credscan.parsers.binary_parser import BinaryFileParser
     from credscan.parsers.cicd_parser import CICDParser
@@ -24,7 +26,6 @@ def build_scan_engine(config: Dict[str, Any]):
     from credscan.parsers.iac_parser import IaCParser
     from credscan.parsers.json_parser import JSONParser
     from credscan.parsers.yaml_parser import YAMLParser
-    from credscan.analyzers.entropy import EntropyAnalyzer
 
     base_engine = ScanEngine(config)
 

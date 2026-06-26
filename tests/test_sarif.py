@@ -5,6 +5,7 @@ consumers rely on: version, tool driver, rules, results with regions,
 CWE tagging, partialFingerprints for cross-run dedup, and -- critically for a
 secrets tool -- that no raw secret value leaks into the SARIF file.
 """
+
 import glob
 import json
 import os
@@ -111,8 +112,11 @@ class TestStableFingerprints:
             r.report(FINDINGS, {"files_scanned": 3})
             f = glob.glob(os.path.join(str(d), "*.sarif"))[0]
             doc = json.load(open(f))
-            return [res["partialFingerprints"]["credscan/v1"]
-                    for res in doc["runs"][0]["results"]]
+            return [
+                res["partialFingerprints"]["credscan/v1"]
+                for res in doc["runs"][0]["results"]
+            ]
+
         assert run() == run()
 
 
