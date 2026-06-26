@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/ToluGIT/credscan/actions/workflows/ci.yml"><img src="https://github.com/ToluGIT/credscan/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.9%2B-blue" alt="Python"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.12-blue" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 </p>
 
