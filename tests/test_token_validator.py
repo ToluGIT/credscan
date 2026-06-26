@@ -4,6 +4,7 @@ All network calls are mocked: tests never contact a real provider and never
 require live credentials. They verify provider detection, verdict mapping
 (ACTIVE / INVALID / UNVERIFIED), and the read-only/opt-in ethics constraints.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,14 +21,24 @@ def validator():
 
 
 class TestProviderDetection:
-    @pytest.mark.parametrize("token,provider", [
-        ("ghp_R7y2Kx4pQn8vZ3wBfCgHjLmNt6RsUuVwXy1", "github"),
-        ("xoxb-742318965012-742318965012-KpRxMnVzQtWb", "slack"),
-        ("sk_live_7mNk3pQr5tVwXzBfCgHjKlMn", "stripe"),
-        ("ya29.A0ARrdaM-longtokenvalue", "gcp"),
-        ("AKIAZ7Q2MNP4RVTW6XYL", None),       # AWS handled elsewhere
-        ("not-a-token", None),
-    ])
+    @pytest.mark.parametrize(
+        "token,provider",
+        [
+            ("ghp_R7y2Kx4pQn8vZ3wBfCgHjLmNt6RsUuVwXy1", "github"),
+            ("xoxb-742318965012-742318965012-KpRxMnVzQtWb", "slack"),
+            ("sk_live_7mNk3pQr5tVwXzBfCgHjKlMn", "stripe"),
+            ("ya29.A0ARrdaM-longtokenvalue", "gcp"),
+            # Anthropic must win over the generic OpenAI sk- prefix.
+            ("sk-ant-api03-Zk9xQ2mNpR7vYt3wBfHj4Lc", "anthropic"),
+            ("sk-proj-Zk9xQ2mNpR7vYt3wBfHj4Lc", "openai"),
+            ("sk-Zk9xQ2mNpR7vYt3wBfHj4LcDgE8sUa", "openai"),
+            ("npm_Zk9xQ2mNpR7vYt3wBfHj4LcDgE8sUaItoR", "npm"),
+            # Stripe's sk_live_ must NOT be mistaken for OpenAI's sk-.
+            ("sk_live_7mNk3pQr5tVwXzBfCgHjKlMn", "stripe"),
+            ("AKIAZ7Q2MNP4RVTW6XYL", None),  # AWS handled elsewhere
+            ("not-a-token", None),
+        ],
+    )
     def test_detect_provider(self, validator, token, provider):
         assert validator.detect_provider(token) == provider
 
@@ -69,6 +80,42 @@ class TestVerdictMapping:
         with patch.object(validator, "_get_requests", return_value=requests):
             result = validator.validate("xoxb-742318965012-742318965012-KpRxMnVzQtWb")
         assert result["valid"] is False
+
+    def test_openai_active_and_invalid(self, validator):
+        tok = "sk-proj-Zk9xQ2mNpR7vYt3wBfHj4LcDgE8sUaItoR"
+        with patch.object(
+            validator, "_get_requests", return_value=self._mock_requests(200)
+        ):
+            assert validator.validate(tok)["valid"] is True
+        with patch.object(
+            validator, "_get_requests", return_value=self._mock_requests(401)
+        ):
+            assert validator.validate(tok)["valid"] is False
+
+    def test_anthropic_active_and_invalid(self, validator):
+        tok = "sk-ant-api03-Zk9xQ2mNpR7vYt3wBfHj4LcDgE8sUaItoR"
+        with patch.object(
+            validator, "_get_requests", return_value=self._mock_requests(200)
+        ):
+            assert validator.validate(tok)["valid"] is True
+        with patch.object(
+            validator, "_get_requests", return_value=self._mock_requests(403)
+        ):
+            assert validator.validate(tok)["valid"] is False
+
+    def test_npm_active_and_invalid(self, validator):
+        tok = "npm_Zk9xQ2mNpR7vYt3wBfHj4LcDgE8sUaItoR"
+        with patch.object(
+            validator,
+            "_get_requests",
+            return_value=self._mock_requests(200, {"username": "octocat"}),
+        ):
+            r = validator.validate(tok)
+            assert r["valid"] is True and "octocat" in r["identity"]
+        with patch.object(
+            validator, "_get_requests", return_value=self._mock_requests(401)
+        ):
+            assert validator.validate(tok)["valid"] is False
 
     def test_network_error_is_unverified_not_invalid(self, validator):
         requests = MagicMock()
@@ -135,10 +182,13 @@ class TestEnrichFindings:
         resp = MagicMock(status_code=200)
         resp.json.return_value = {"login": "octocat"}
         requests.get.return_value = resp
-        findings = [{
-            "value": 'token = "ghp_R7y2Kx4pQn8vZ3wBfCgHjLmNt6RsUuVwXy1"',
-            "rule_name": "GitHub Token", "severity": "high",
-        }]
+        findings = [
+            {
+                "value": 'token = "ghp_R7y2Kx4pQn8vZ3wBfCgHjLmNt6RsUuVwXy1"',
+                "rule_name": "GitHub Token",
+                "severity": "high",
+            }
+        ]
         with patch.object(validator, "_get_requests", return_value=requests):
             out = validator.enrich_findings(findings)
         assert out[0]["verification"].startswith("ACTIVE")

@@ -65,6 +65,13 @@ class TokenValidator:
             return "stripe"
         if token.startswith("ya29."):
             return "gcp"
+        # Anthropic must be checked before the generic OpenAI sk- prefix.
+        if token.startswith("sk-ant-"):
+            return "anthropic"
+        if token.startswith(("sk-proj-", "sk-")):
+            return "openai"
+        if token.startswith("npm_"):
+            return "npm"
         return None
 
     # ── Per-provider verification (each is read-only) ──────────────────────────
@@ -150,6 +157,55 @@ class TokenValidator:
             return {"valid": None, "error": f"HTTP {resp.status_code} (indeterminate)"}
         return {"valid": None, "error": f"HTTP {resp.status_code}"}
 
+    def _verify_openai(self, requests, token: str) -> Dict[str, Any]:
+        # GET /v1/models is read-only and lists models the key can access.
+        resp = requests.get(
+            "https://api.openai.com/v1/models",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=_TIMEOUT_SECONDS,
+        )
+        if resp.status_code == 200:
+            return {"valid": True, "identity": "openai key (active)"}
+        if resp.status_code == 401:
+            return {"valid": False, "error": "HTTP 401 (invalid/revoked)"}
+        return {"valid": None, "error": f"HTTP {resp.status_code}"}
+
+    def _verify_anthropic(self, requests, token: str) -> Dict[str, Any]:
+        # GET /v1/models is read-only. Anthropic uses the x-api-key header.
+        resp = requests.get(
+            "https://api.anthropic.com/v1/models",
+            headers={"x-api-key": token, "anthropic-version": "2023-06-01"},
+            timeout=_TIMEOUT_SECONDS,
+        )
+        if resp.status_code == 200:
+            return {"valid": True, "identity": "anthropic key (active)"}
+        if resp.status_code in (401, 403):
+            return {
+                "valid": False,
+                "error": f"HTTP {resp.status_code} (invalid/revoked)",
+            }
+        return {"valid": None, "error": f"HTTP {resp.status_code}"}
+
+    def _verify_npm(self, requests, token: str) -> Dict[str, Any]:
+        # /-/whoami is the read-only identity endpoint for an npm token.
+        resp = requests.get(
+            "https://registry.npmjs.org/-/whoami",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=_TIMEOUT_SECONDS,
+        )
+        if resp.status_code == 200:
+            try:
+                user = resp.json().get("username", "")
+            except Exception:
+                user = ""
+            return {"valid": True, "identity": f"npm user: {user}"}
+        if resp.status_code in (401, 403):
+            return {
+                "valid": False,
+                "error": f"HTTP {resp.status_code} (invalid/revoked)",
+            }
+        return {"valid": None, "error": f"HTTP {resp.status_code}"}
+
     @property
     def _providers(self) -> Dict[str, Callable]:
         return {
@@ -157,6 +213,9 @@ class TokenValidator:
             "slack": self._verify_slack,
             "stripe": self._verify_stripe,
             "gcp": self._verify_gcp,
+            "openai": self._verify_openai,
+            "anthropic": self._verify_anthropic,
+            "npm": self._verify_npm,
         }
 
     # ── Public API ──────────────────────────────────────────────────────────-
@@ -218,7 +277,10 @@ class TokenValidator:
             r"(ghp_[A-Za-z0-9]{30,40}|gh[ousr]_[A-Za-z0-9]{30,40}|"
             r"xox[baprs]-[A-Za-z0-9-]{10,}|"
             r"(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}|"
-            r"ya29\.[A-Za-z0-9_\-]+)",
+            r"ya29\.[A-Za-z0-9_\-]+|"
+            r"sk-ant-[A-Za-z0-9_\-]{20,}|"  # Anthropic (before generic sk-)
+            r"sk-proj-[A-Za-z0-9_\-]{20,}|sk-[A-Za-z0-9]{20,}|"  # OpenAI
+            r"npm_[A-Za-z0-9]{36})",  # npm automation/publish token
             value,
         )
         return m.group(1) if m else None

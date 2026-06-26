@@ -208,7 +208,7 @@ def parse_args():
         "--verify",
         action="store_true",
         help="Verify discovered tokens against provider identity endpoints "
-        "(GitHub/GCP/Slack/Stripe; read-only, opt-in)",
+        "(GitHub/GCP/Slack/Stripe/OpenAI/Anthropic/npm; read-only, opt-in)",
     )
     cloud.add_argument(
         "--check-breaches",
