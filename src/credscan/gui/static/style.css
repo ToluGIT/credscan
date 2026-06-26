@@ -246,7 +246,8 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; background: var
 .footer { border-top: 1px solid var(--border); padding: 8px 24px; color: var(--text-muted); font-size: 11px; display: flex; gap: 16px; flex-wrap: wrap; }
 
 /* ── Guide / docs page (reuses the shell + panel system) ─────────────────── */
-.guide-shell { display: grid; grid-template-columns: 220px 1fr; gap: 0; align-items: start; }
+/* Cap the TOC + reading column and center the whole block in the viewport. */
+.guide-shell { display: grid; grid-template-columns: 220px minmax(0, 860px); gap: 0; align-items: start; justify-content: center; max-width: 1120px; margin: 0 auto; }
 @media (max-width: 720px) { .guide-shell { grid-template-columns: 1fr; } .guide-toc { display: none; } }
 .guide-toc {
   position: sticky; top: 0; align-self: start; border-right: 1px solid var(--border);
@@ -258,7 +259,7 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; background: var
   padding: 6px 8px; border-left: 2px solid transparent;
 }
 .guide-toc a:hover { background: var(--bg-raised); color: var(--text-primary); }
-.guide-main { padding: 24px 28px 64px; max-width: 860px; }
+.guide-main { padding: 24px 28px 64px; min-width: 0; }
 .guide-section { margin-bottom: 32px; scroll-margin-top: 16px; }
 .guide-section p { font-size: 14px; color: var(--text-primary); margin: 8px 0; }
 .guide-section .panel p:first-child { margin-top: 0; }

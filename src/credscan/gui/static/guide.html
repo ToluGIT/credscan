@@ -52,7 +52,6 @@
 
   <div class="panel">
     <p>CredScan finds hardcoded secrets across source code, Infrastructure-as-Code, CI/CD pipelines, Docker, git history, and web endpoints, and can verify which keys are still live. It is built for developers and cloud-security engineers who need to know not just that a key leaked, but where it came from and whether it still works.</p>
-    <div class="comment">// honest positioning: gitleaks is faster (Go); TruffleHog verifies more providers. CredScan differentiates on cloud-native coverage, explainable confidence scoring, and verification.</div>
   </div>
 
   <div class="panel">
@@ -93,12 +92,6 @@
     </div>
   </div>
 
-  <div class="panel">
-    <div class="sec-head"><span class="name">measured quality</span><span class="meta">[regression suite]</span></div>
-    <div class="comment">// PYTHONPATH=src python benchmarks/run.py</div>
-    <div class="drow"><span class="k">precision / recall / F1</span><span class="tag">1.00 on the bundled labeled corpus</span><span></span></div>
-    <p>This is a regression suite, not an independent benchmark and not a production precision figure. The corpus (17 planted secrets across 6 leaky files plus 4 clean decoy files) and the detector fixes were authored together; its job is to fail CI if a change degrades detection.</p>
-  </div>
 </section>
 
 <section id="getstarted" class="guide-section">
@@ -120,13 +113,12 @@
   </div>
 
   <div class="panel">
-    <div class="sec-head"><span class="name">2. docker public</span><span class="meta">[host it yourself]</span></div>
-    <div class="comment">// build the hardened public image and run it; safe to expose</div>
+    <div class="sec-head"><span class="name">2. docker public</span><span class="meta">[upload-only image]</span></div>
+    <div class="comment">// build the hardened public image and run it</div>
     <div class="cmd-preview"><span class="dollar">$</span> docker build -f Dockerfile.gui -t credscan-gui .</div>
     <div class="cmd-preview"><span class="dollar">$</span> docker run -p 8000:8000 credscan-gui</div>
     <div class="comment">// then open http://localhost:8000</div>
-    <p>This image runs public mode by construction (no boto3, no path scanning, no git-history, no validation), so it is safe on the open internet. A <span class="tag">fly.toml</span> is included to host it on Fly.io.</p>
-    <div class="cmd-preview"><span class="dollar">$</span> fly deploy</div>
+    <p>This image runs public mode by construction (no boto3, no path scanning, no git-history, no validation): the same upload-only experience as the hosted GUI above, in a container you control.</p>
   </div>
 
   <div class="panel">
@@ -500,7 +492,7 @@
 
 <section id="security" class="guide-section">
   <div class="prompt"><span class="host">devops@credscan</span> <span class="dollar">$</span><span class="cmd"> cat THREAT_MODEL.md</span></div>
-  <div class="comment">// the scanner must not become the leak; this is what a senior reviewer checks</div>
+  <div class="comment">// how the tool protects the secrets it handles</div>
 
   <div class="panel">
     <div class="sec-head"><span class="name">masking</span><span class="meta">[default everywhere]</span></div>
