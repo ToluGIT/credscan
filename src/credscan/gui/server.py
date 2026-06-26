@@ -668,6 +668,12 @@ def create_app() -> "FastAPI":
         def index():
             return FileResponse(os.path.join(_STATIC_DIR, "index.html"))
 
+        @app.get("/guide")
+        def guide():
+            # Static usage guide (online / Docker / local / CLI). Served in
+            # every mode; it is documentation, with no filesystem access.
+            return FileResponse(os.path.join(_STATIC_DIR, "guide.html"))
+
         app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 
     return app

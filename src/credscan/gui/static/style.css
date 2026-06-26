@@ -34,6 +34,9 @@ body {
 .topbar .dots .d-g { background: var(--accent); }
 .topbar .title { font-weight: 700; letter-spacing: 0.08em; }
 .topbar .sub { color: var(--text-muted); font-size: 12px; letter-spacing: 0.05em; }
+.topbar-right { display: flex; align-items: center; gap: 14px; }
+.topbar-link { color: var(--text-muted); font-size: 11px; letter-spacing: 0.05em; text-decoration: none; }
+.topbar-link:hover { color: var(--accent); }
 .mode-tag { font-size: 11px; letter-spacing: 0.05em; }
 .mode-tag.mode-public { color: var(--warn); }
 .mode-tag.mode-local { color: var(--accent); }
@@ -241,3 +244,23 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; background: var
 @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 .footer { border-top: 1px solid var(--border); padding: 8px 24px; color: var(--text-muted); font-size: 11px; display: flex; gap: 16px; flex-wrap: wrap; }
+
+/* ── Guide / docs page (reuses the shell + panel system) ─────────────────── */
+.guide-shell { display: grid; grid-template-columns: 220px 1fr; gap: 0; align-items: start; }
+@media (max-width: 720px) { .guide-shell { grid-template-columns: 1fr; } .guide-toc { display: none; } }
+.guide-toc {
+  position: sticky; top: 0; align-self: start; border-right: 1px solid var(--border);
+  padding: 24px 16px; display: flex; flex-direction: column; gap: 2px;
+}
+.guide-toc .side-sec { color: var(--text-muted); font-size: 12px; margin-bottom: 8px; }
+.guide-toc a {
+  display: block; color: var(--text-muted); text-decoration: none; font-size: 14px;
+  padding: 6px 8px; border-left: 2px solid transparent;
+}
+.guide-toc a:hover { background: var(--bg-raised); color: var(--text-primary); }
+.guide-main { padding: 24px 28px 64px; max-width: 860px; }
+.guide-section { margin-bottom: 32px; scroll-margin-top: 16px; }
+.guide-section p { font-size: 14px; color: var(--text-primary); margin: 8px 0; }
+.guide-section .panel p:first-child { margin-top: 0; }
+.guide-section a { color: var(--accent); text-decoration: none; }
+.guide-section a:hover { text-decoration: underline; }

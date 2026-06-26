@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CredScan · Guide</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230A0A0A'/%3E%3Ccircle cx='8' cy='8' r='4' fill='%2300FF14'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- Top bar (matches the app shell) -->
+  <div class="topbar">
+    <div class="brand">
+      <span class="dots"><i class="d-r"></i><i class="d-a"></i><i class="d-g"></i></span>
+      <span class="title">CREDSCAN</span>
+      <span class="sub">CLOUD SECURITY · CREDENTIAL SCANNER</span>
+    </div>
+    <div class="topbar-right">
+      <a class="topbar-link" href="/">[ back to app ]</a>
+      <span class="mode-tag mode-local">[ guide ]</span>
+    </div>
+  </div>
+
+  <!-- Guide shell: sticky TOC + reading column -->
+  <div class="guide-shell">
+    <aside class="guide-toc">
+      <div class="side-sec">// contents</div>
+        <a href="#overview">overview</a>
+        <a href="#getstarted">get started</a>
+        <a href="#detection">how detection works</a>
+        <a href="#verify">verify & breaches</a>
+        <a href="#reports">reports & ci</a>
+        <a href="#cli">cli reference</a>
+        <a href="#security">security & trust</a>
+      <div class="side-sec" style="margin-top:20px">// links</div>
+      <a href="/">run a scan</a>
+      <a href="/api/docs">api reference</a>
+    </aside>
+
+    <main class="guide-main">
+      <div class="prompt">
+        <span class="host">devops@credscan</span> <span class="dollar">$</span>
+        <span class="cmd"> man credscan</span><span class="cursor"></span>
+      </div>
+      <div class="comment">// how to leverage CredScan from the online GUI, Docker, locally, or the CLI</div>
+
+<section id="overview" class="guide-section">
+  <div class="prompt"><span class="host">devops@credscan</span> <span class="dollar">$</span> <span class="cmd"> credscan --help # what is this</span></div>
+  <div class="comment">// hardcoded-secret scanner for cloud-native sources, with transparent scoring and verification</div>
+
+  <div class="panel">
+    <p>CredScan finds hardcoded secrets across source code, Infrastructure-as-Code, CI/CD pipelines, Docker, git history, and web endpoints, and can verify which keys are still live. It is built for developers and cloud-security engineers who need to know not just that a key leaked, but where it came from and whether it still works.</p>
+    <div class="comment">// honest positioning: gitleaks is faster (Go); TruffleHog verifies more providers. CredScan differentiates on cloud-native coverage, explainable confidence scoring, and verification.</div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">what it scans</span><span class="meta">[8 parser sources + git history + web]</span></div>
+    <div class="comment">// purpose-built for IaC, pipelines, and containers</div>
+    <div class="brackets">
+      <span class="opt on">[✓] Terraform .tf / .tfvars + CloudFormation</span>
+      <span class="opt on">[✓] GitHub Actions / GitLab CI / CircleCI / Jenkinsfile</span>
+      <span class="opt on">[✓] Dockerfile + image tarballs</span>
+      <span class="opt on">[✓] .env files</span>
+      <span class="opt on">[✓] JSON + YAML</span>
+      <span class="opt on">[✓] source code (.py .js .ts .go .java .rb .c .cpp .cs .php .kt .swift)</span>
+      <span class="opt on">[✓] archives (zip / tar / jar / war / apk / ipa)</span>
+      <span class="opt on">[✓] git commit history</span>
+      <span class="opt on">[✓] web URLs</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">what it detects</span><span class="meta">[15+ categories]</span></div>
+    <div class="comment">// provider-anchored where possible; private keys are critical severity</div>
+    <div class="brackets">
+      <span class="opt on">[✓] AWS access keys + secret keys</span>
+      <span class="opt on">[✓] GCP service-account + API keys</span>
+      <span class="opt on">[✓] Azure connection strings</span>
+      <span class="opt on">[✓] Stripe</span>
+      <span class="opt on">[✓] Slack</span>
+      <span class="opt on">[✓] GitHub / GitLab / Bitbucket tokens</span>
+      <span class="opt on">[✓] Twilio / SendGrid / Mailgun</span>
+      <span class="opt on">[✓] OpenAI / Anthropic / HuggingFace</span>
+      <span class="opt on">[✓] DB connection strings (postgres / mysql / mongodb / redis)</span>
+      <span class="opt on">[✓] generic passwords</span>
+      <span class="opt on">[✓] JWT</span>
+      <span class="opt on">[✓] OAuth client secrets</span>
+      <span class="opt on">[✓] private keys (RSA / DSA / EC / OPENSSH / PGP)</span>
+      <span class="opt on">[✓] PKCS#12 / PFX</span>
+      <span class="opt on">[✓] X.509 certificates</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">measured quality</span><span class="meta">[regression suite]</span></div>
+    <div class="comment">// PYTHONPATH=src python benchmarks/run.py</div>
+    <div class="drow"><span class="k">precision / recall / F1</span><span class="tag">1.00 on the bundled labeled corpus</span><span></span></div>
+    <p>This is a regression suite, not an independent benchmark and not a production precision figure. The corpus (17 planted secrets across 6 leaky files plus 4 clean decoy files) and the detector fixes were authored together; its job is to fail CI if a change degrades detection.</p>
+  </div>
+</section>
+
+<section id="getstarted" class="guide-section">
+  <div class="prompt"><span class="host">devops@credscan</span> <span class="dollar">$</span> <span class="cmd"> credscan --get-started</span></div>
+  <div class="comment">// four ways to run it; pick by what you can install and how much power you need</div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">two-image safety model</span><span class="meta">[read first]</span></div>
+    <div class="comment">// the public image is safe by construction; the local image is trusted-machine-only</div>
+    <p>The hosted/public path omits boto3 and defaults to public mode (upload-only, sandboxed, no path scanning, no git-history, no live validation), so no single misconfiguration turns the demo into a host-filesystem reader or a credential-checking oracle. The local path is a separate image with full power: path scanning, git-history, and AWS validation. Run it only on your own machine.</p>
+    <div class="brackets"><span class="opt on">[✓] public = upload-only, sandboxed</span><span class="opt on">[✓] local = full power, trusted machine</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">1. online</span><span class="meta">[hosted public GUI]</span></div>
+    <div class="comment">// nothing to install; upload files or paste text in the browser</div>
+    <p>Open the hosted GUI, upload files or paste text, and read the masked findings. Public mode is hardened: no filesystem or path scanning, no git-history, no live validation. Content is scanned in a per-request sandbox and deleted; hard limits apply (2 MB, 200 files, rate-limited).</p>
+    <div class="brackets"><span class="opt on">[✓] upload or paste</span><span class="opt on">[✓] sandboxed + deleted</span><span class="opt on">[✓] findings masked</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">2. docker public</span><span class="meta">[host it yourself]</span></div>
+    <div class="comment">// build the hardened public image and run it; safe to expose</div>
+    <div class="cmd-preview"><span class="dollar">$</span> docker build -f Dockerfile.gui -t credscan-gui .</div>
+    <div class="cmd-preview"><span class="dollar">$</span> docker run -p 8000:8000 credscan-gui</div>
+    <div class="comment">// then open http://localhost:8000</div>
+    <p>This image runs public mode by construction (no boto3, no path scanning, no git-history, no validation), so it is safe on the open internet. A <span class="tag">fly.toml</span> is included to host it on Fly.io.</p>
+    <div class="cmd-preview"><span class="dollar">$</span> fly deploy</div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">3. docker local</span><span class="meta">[full power, your machine]</span></div>
+    <div class="comment">// path scan + git-history + AWS validation; loopback-published, never exposed</div>
+    <div class="cmd-preview"><span class="dollar">$</span> docker build -f Dockerfile.gui.local -t credscan-gui-local .</div>
+    <div class="cmd-preview"><span class="dollar">$</span> docker run --rm -p 127.0.0.1:8000:8000 -v "$PWD:/scan:ro" credscan-gui-local</div>
+    <div class="comment">// mount the code you want to scan at /scan; publish to 127.0.0.1 so it is unreachable off-machine</div>
+    <p>This is a separate image that includes boto3 and runs local mode, so the browser UI can do everything the CLI can. It is not safe to expose; publish the port to loopback only. For AWS validation, also mount your credentials read-only.</p>
+    <div class="cmd-preview"><span class="dollar">$</span> docker run --rm -p 127.0.0.1:8000:8000 -v "$PWD:/scan:ro" -v "$HOME/.aws:/home/scanner/.aws:ro" credscan-gui-local</div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">4. local pip</span><span class="meta">[install from source]</span></div>
+    <div class="comment">// the local GUI in full mode, or the CLI directly</div>
+    <div class="cmd-preview"><span class="dollar">$</span> pip install -e ".[gui,aws]"</div>
+    <div class="comment">// then run the GUI (local mode: path scan + git-history + validation)</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan-gui</div>
+    <div class="comment">// or run the CLI against the current directory</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan -p .</div>
+    <p>The <span class="tag">gui</span> extra installs fastapi, uvicorn, and python-multipart; the <span class="tag">aws</span> extra adds boto3 for live AWS key validation. The CLI accepts every flag documented in the rest of this guide.</p>
+  </div>
+</section>
+
+<section id="detection" class="guide-section">
+  <div class="prompt"><span class="host">devops@credscan</span> <span class="dollar">$</span> <span class="cmd"> credscan --explain detection</span></div>
+  <div class="comment">// four layers, applied in order: pattern, entropy, context, confidence</div>
+
+  <div class="panel">
+    <p>A finding passes through four layers before it reaches output. Each layer contributes a signal; none of them is a verdict on its own. The last layer combines the signals into a single confidence score and drops anything below the threshold.</p>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">layer-1 pattern-match</span><span class="meta">[high precision, structured secrets]</span></div>
+    <div class="comment">// provider-anchored regex</div>
+    <p>Provider-specific regex matches structured secrets: AWS access keys, GitHub and Slack tokens, Stripe keys, private-key PEM blocks, and so on. When a value carries a known provider shape, the match is high precision and anchors the rest of the pipeline.</p>
+    <div class="brackets"><span class="opt on">[✓] aws</span><span class="opt on">[✓] github</span><span class="opt on">[✓] slack</span><span class="opt on">[✓] stripe</span><span class="opt on">[✓] private-key</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">layer-2 entropy</span><span class="meta">[contributing factor, never a verdict]</span></div>
+    <div class="comment">// Shannon entropy with per-type thresholds</div>
+    <p>Shannon entropy flags random-looking strings that have no provider shape. The threshold is per encoding type, because a base64 blob, a hex digest, and a JWT do not carry the same bits per character. Entropy alone never decides a finding; it feeds the score in layer four.</p>
+    <div class="drow"><span class="k">base64</span><span class="tag">4.5</span><span></span></div>
+    <div class="drow"><span class="k">jwt</span><span class="tag">4.0</span><span></span></div>
+    <div class="drow"><span class="k">hex</span><span class="tag">3.8</span><span></span></div>
+    <div class="comment">// UUIDs and named integrity hashes (sha256-..., md5-...) are filtered as known false positives</div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">layer-3 context</span><span class="meta">[prod vs test/docs/example]</span></div>
+    <div class="comment">// examines the surrounding lines</div>
+    <p>Context reads the lines around the match and the file path to tell a production config apart from a test fixture, a doc snippet, or an example. A production signal raises confidence; a test or example signal lowers it, though not to zero, since test files still leak working keys.</p>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">layer-4 confidence</span><span class="meta">[weighted combination]</span></div>
+    <div class="comment">// pattern + context + entropy + technology, then filter</div>
+    <p>The score is a weighted combination of the prior layers plus a technology signal. Pattern match carries the most weight, then context, then entropy, then technology. The result is bounded to 0.0 to 1.0 and explained per finding.</p>
+    <table class="ftable">
+      <thead><tr><th>factor</th><th>weight</th></tr></thead>
+      <tbody>
+        <tr><td>pattern match</td><td>0.30</td></tr>
+        <tr><td>context</td><td>0.25</td></tr>
+        <tr><td>entropy</td><td>0.20</td></tr>
+        <tr><td>technology</td><td>0.15</td></tr>
+        <tr><td>environment + validation</td><td>0.10</td></tr>
+      </tbody>
+    </table>
+    <div class="comment">// default min-confidence 0.3; findings below it are filtered before output</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan -p . --min-confidence 0.3</div>
+  </div>
+
+  <div class="panel">
+    <div class="comment">// honest tradeoff</div>
+    <p>gitleaks is faster; it is written in Go and runs regex at scale. CredScan trades some of that speed for the entropy, context, and scoring passes, which is what lets it report lower-precision classes such as generic and assignment-style secrets without burying you in noise.</p>
+  </div>
+</section>
+
+<section id="verify" class="guide-section">
+  <div class="prompt">
+    <span class="host">devops@credscan</span> <span class="dollar">$</span>
+    <span class="cmd"> credscan --verify --check-breaches</span>
+  </div>
+  <div class="comment">// turn a "looks like a secret" finding into "this key is live" or "this password is breached"</div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">live-verification</span><span class="meta">[opt-in, read-only, rate-limited]</span></div>
+    <div class="comment">// each token is sent only to its own provider, over a read-only call, never to a third party</div>
+
+    <p>Pattern, entropy, and context tell you a string looks like a credential. Verification tells you whether it still works. It is off by default and you enable it explicitly; the calls are read-only and rate-limited.</p>
+
+    <div class="brackets">
+      <span class="opt on">[✓] opt-in only</span>
+      <span class="opt on">[✓] read-only calls</span>
+      <span class="opt on">[✓] rate-limited</span>
+      <span class="opt on">[✓] token sent only to its own provider</span>
+    </div>
+
+    <div class="cmd-preview"><span class="dollar">$</span> credscan -p . --validate-aws</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan -p . --verify</div>
+
+    <table class="ftable">
+      <thead>
+        <tr><th>provider</th><th>flag</th><th>read-only check</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>AWS</td><td><span class="tag">--validate-aws</span></td><td>sts:GetCallerIdentity</td></tr>
+        <tr><td>GitHub</td><td><span class="tag">--verify</span></td><td>GET /user</td></tr>
+        <tr><td>Slack</td><td><span class="tag">--verify</span></td><td>auth.test</td></tr>
+        <tr><td>Stripe</td><td><span class="tag">--verify</span></td><td>GET /v1/account</td></tr>
+        <tr><td>GCP</td><td><span class="tag">--verify</span></td><td>oauth2 tokeninfo</td></tr>
+        <tr><td>OpenAI</td><td><span class="tag">--verify</span></td><td>GET /v1/models</td></tr>
+        <tr><td>Anthropic</td><td><span class="tag">--verify</span></td><td>GET /v1/models</td></tr>
+        <tr><td>npm</td><td><span class="tag">--verify</span></td><td>GET /-/whoami</td></tr>
+      </tbody>
+    </table>
+
+    <div class="comment">// what the result means</div>
+    <div class="drow"><span class="k">verified live</span><span class="tag">escalated to critical</span><span></span></div>
+    <div class="comment">// a live key is the strongest signal the scanner gives: near-100% precision</div>
+    <div class="drow"><span class="k">network or parse error</span><span class="tag">reads as UNVERIFIED</span><span></span></div>
+    <div class="comment">// an unverifiable read is never treated as invalid; absence of proof is not proof of safety</div>
+
+    <div class="comment">// Azure and PyPI are detected but not verified: there is no honest read-only check for them, so credscan does not claim to verify them</div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">breach-correlation</span><span class="meta">[--check-breaches]</span></div>
+    <div class="comment">// cross-check password-like findings against the HaveIBeenPwned Pwned Passwords corpus</div>
+
+    <p>This correlates password-like findings against the HaveIBeenPwned Pwned Passwords corpus using k-anonymity. The secret never leaves the machine.</p>
+
+    <div class="cmd-preview"><span class="dollar">$</span> credscan -p . --check-breaches</div>
+
+    <div class="brackets">
+      <span class="opt on">[✓] SHA-1 computed locally</span>
+      <span class="opt on">[✓] only the first 5 hex chars of the hash are sent</span>
+      <span class="opt on">[✓] match checked locally</span>
+      <span class="opt on">[✓] secret never leaves the machine</span>
+    </div>
+
+    <div class="comment">// what a hit means</div>
+    <div class="drow"><span class="k">seen in N known breaches</span><span class="tag">severity escalated</span><span></span></div>
+
+    <div class="comment">// provider keys (AWS, PEM private keys) are excluded: the password corpus is the wrong reference for them</div>
+  </div>
+</section>
+
+<section id="reports" class="guide-section">
+  <div class="prompt"><span class="host">devops@credscan</span> <span class="dollar">$</span><span class="cmd"> credscan -p . -o sarif,compliance -d ./reports</span></div>
+  <div class="comment">// pick a format, wire it into CI, track false positives</div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">output formats</span><span class="meta">[--output / -o, comma-separated; --output-dir / -d]</span></div>
+    <div class="comment">// all human-readable output masks values (AKIA...MPLE). full values live only in the json audit log on the CLI.</div>
+    <table class="ftable">
+      <thead>
+        <tr><th>format</th><th>use case</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="tag">console</span></td><td>default, colored terminal output for local runs</td></tr>
+        <tr><td><span class="tag">json</span></td><td>full detail incl. remediation; the audit log, full values here only</td></tr>
+        <tr><td><span class="tag">sarif</span></td><td>SARIF 2.1.0 for GitHub code scanning and VS Code; CWE tags</td></tr>
+        <tr><td><span class="tag">html</span></td><td>masked and escaped report for sharing</td></tr>
+        <tr><td><span class="tag">excel</span></td><td>spreadsheet of findings; masked values</td></tr>
+        <tr><td><span class="tag">csv</span></td><td>flat findings table; masked values</td></tr>
+        <tr><td><span class="tag">pdf</span></td><td>printable report; masked values</td></tr>
+        <tr><td><span class="tag">compliance</span></td><td>CSV pivoted by control framework for auditors; masked values</td></tr>
+      </tbody>
+    </table>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan -p ./src -o json,sarif -d ./reports</div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">sarif + github code scanning</span><span class="meta">[SARIF 2.1.0]</span></div>
+    <div class="comment">// the sarif report loads in the github security tab and in vs code.</div>
+    <div class="brackets">
+      <span class="opt on">[✓] SARIF 2.1.0 schema</span>
+      <span class="opt on">[✓] CWE tags per rule</span>
+      <span class="opt on">[✓] stable partialFingerprints for cross-run dedup</span>
+    </div>
+    <div class="comment">// CWE mapping: CWE-798 hard-coded credentials, CWE-259 hard-coded password, CWE-321 hard-coded cryptographic key.</div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">compliance export</span><span class="meta">[-o compliance]</span></div>
+    <div class="comment">// one CSV, framework-segmented: a provenance header, then one row per finding x control.</div>
+    <div class="comment">// pivot on the Framework column across CWE, NIST 800-53, PCI-DSS v4.0, OWASP ASVS, SOC 2, ISO 27001.</div>
+    <div class="brackets">
+      <span class="opt on">[✓] Finding ID, stable across scans</span>
+      <span class="opt on">[✓] verification status</span>
+      <span class="opt on">[✓] confidence</span>
+      <span class="opt on">[✓] remediation</span>
+    </div>
+    <div class="comment">// values are masked; this report is for auditors, not for secrets.</div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">github action</span><span class="meta">[official]</span></div>
+    <div class="comment">// scans on push/PR, uploads SARIF to the Security tab, fails the job on findings.</div>
+    <div class="drow"><span class="k">default output</span><span class="tag">sarif</span><span></span></div>
+    <div class="drow"><span class="k">fail-on-findings</span><span class="tag">job fails when secrets found</span><span></span></div>
+    <div class="drow"><span class="k">sarif-file</span><span class="tag">output path for upload</span><span></span></div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">pre-commit hook</span><span class="meta">[--install-hook]</span></div>
+    <div class="comment">// scan staged changes before the commit lands.</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan --install-hook --hook-config block</div>
+    <div class="brackets">
+      <span class="opt on">[✓] warning-only: warn but allow the commit</span>
+      <span class="opt on">[✓] block: stop the commit when credentials are found</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">baseline</span><span class="meta">[false-positive management]</span></div>
+    <div class="comment">// record known false positives once; later scans exclude them.</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan -p . --create-baseline .credscan-baseline.json</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan -p . --baseline-file .credscan-baseline.json</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan --mark-fp FINDING_ID --baseline-file .credscan-baseline.json</div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">incremental scans</span><span class="meta">[--staged / --diff]</span></div>
+    <div class="comment">// scan only what changed instead of the whole tree.</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan --staged</div>
+    <div class="comment">// only git-staged changes; fast, for pre-commit.</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan --diff origin/main</div>
+    <div class="comment">// only files changed vs a git ref; for CI on a PR.</div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">exit codes</span><span class="meta">[for CI gating]</span></div>
+    <div class="drow"><span class="k">0</span><span class="tag">clean</span><span></span></div>
+    <div class="drow"><span class="k">1</span><span class="tag">credentials found</span><span></span></div>
+    <div class="drow"><span class="k">2</span><span class="tag">argument error</span><span></span></div>
+  </div>
+</section>
+
+<section id="cli" class="guide-section">
+  <div class="prompt"><span class="host">devops@credscan</span> <span class="dollar">$</span> <span class="cmd"> credscan --help</span></div>
+  <div class="comment">// flags grouped as the help prints them; defaults shown inline</div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">scan target</span><span class="meta">[where to look]</span></div>
+    <div class="comment">// pick a path, a git diff, or a web URL</div>
+    <table class="ftable">
+      <thead>
+        <tr><th>flag</th><th>description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="tag">--path, -p PATH</span></td><td>Directory or file to scan (default: .)</td></tr>
+        <tr><td><span class="tag">--exclude, -e PATTERNS</span></td><td>Comma-separated path patterns to skip, e.g. "node_modules/,*.log"</td></tr>
+        <tr><td><span class="tag">--include, -i PATTERNS</span></td><td>Only scan paths matching these comma-separated patterns</td></tr>
+        <tr><td><span class="tag">--staged</span></td><td>Scan only git-staged changes (fast; for pre-commit)</td></tr>
+        <tr><td><span class="tag">--diff REF</span></td><td>Scan only files changed vs a git ref, e.g. origin/main</td></tr>
+        <tr><td><span class="tag">--url URL</span></td><td>Web URL to scan for credentials</td></tr>
+        <tr><td><span class="tag">--crawl</span></td><td>Crawl the target URL to discover additional pages</td></tr>
+        <tr><td><span class="tag">--crawl-depth N</span></td><td>Max crawl depth (default: 2)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">output</span><span class="meta">[format and verbosity]</span></div>
+    <div class="comment">// --output takes a comma-separated list; values are masked except in json</div>
+    <table class="ftable">
+      <thead>
+        <tr><th>flag</th><th>description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="tag">--output, -o FORMAT</span></td><td>Report format(s): console, json, sarif, html, excel, csv, pdf, compliance (default: console)</td></tr>
+        <tr><td><span class="tag">--output-dir, -d DIR</span></td><td>Directory for saved reports (default: .)</td></tr>
+        <tr><td><span class="tag">--group-by-severity</span></td><td>Group findings by severity (critical, high, medium, low)</td></tr>
+        <tr><td><span class="tag">--summary-mode</span></td><td>Print a one-line summary per file instead of full details</td></tr>
+        <tr><td><span class="tag">--show-confidence-details</span></td><td>Show per-factor confidence score breakdown</td></tr>
+        <tr><td><span class="tag">--show-test-credentials</span></td><td>Include auto-detected test/example credentials in output</td></tr>
+        <tr><td><span class="tag">--no-color</span></td><td>Disable ANSI colors (useful for CI logs)</td></tr>
+        <tr><td><span class="tag">--verbose, -v</span></td><td>Enable debug-level logging</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">detection</span><span class="meta">[tune the pipeline]</span></div>
+    <div class="comment">// min-confidence defaults to 0.3; entropy and context can be switched off</div>
+    <table class="ftable">
+      <thead>
+        <tr><th>flag</th><th>description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="tag">--min-confidence SCORE</span></td><td>Minimum confidence to report a finding, 0.0 to 1.0 (default: 0.3)</td></tr>
+        <tr><td><span class="tag">--entropy-threshold N</span></td><td>Shannon entropy threshold; raise to reduce false positives (default: 4.0)</td></tr>
+        <tr><td><span class="tag">--min-length N</span></td><td>Minimum credential value length (default: 6)</td></tr>
+        <tr><td><span class="tag">--no-entropy</span></td><td>Disable all entropy-based detection</td></tr>
+        <tr><td><span class="tag">--no-context-analysis</span></td><td>Disable context-aware false positive filtering</td></tr>
+        <tr><td><span class="tag">--no-deduplication</span></td><td>Show every raw finding instead of grouped/deduped results</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">cloud security</span><span class="meta">[opt-in verification]</span></div>
+    <div class="comment">// read-only checks; tokens go only to their own provider, breach checks use k-anonymity</div>
+    <div class="drow"><span class="k">--validate-aws</span><span class="tag">Verify discovered AWS keys via sts:GetCallerIdentity (read-only, opt-in)</span><span></span></div>
+    <div class="drow"><span class="k">--verify</span><span class="tag">Verify discovered tokens against provider identity endpoints (GitHub/GCP/Slack/Stripe/OpenAI/Anthropic/npm; read-only, opt-in)</span><span></span></div>
+    <div class="drow"><span class="k">--check-breaches</span><span class="tag">Correlate passwords/secrets against known breaches via HIBP (k-anonymity: the secret never leaves the machine; opt-in)</span><span></span></div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">git integration</span><span class="meta">[history and hooks]</span></div>
+    <div class="comment">// a deleted secret still lives in history; --scan-history walks the commits</div>
+    <table class="ftable">
+      <thead>
+        <tr><th>flag</th><th>description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="tag">--scan-history</span></td><td>Scan git commit history for credentials</td></tr>
+        <tr><td><span class="tag">--max-commits N</span></td><td>Limit history scan to the N most recent commits</td></tr>
+        <tr><td><span class="tag">--since DATE</span></td><td>Only scan commits newer than DATE, e.g. "2 weeks ago"</td></tr>
+        <tr><td><span class="tag">--until DATE</span></td><td>Only scan commits older than DATE</td></tr>
+        <tr><td><span class="tag">--branch REF</span></td><td>Branch or ref to scan (default: HEAD)</td></tr>
+        <tr><td><span class="tag">--install-hook</span></td><td>Install CredScan as a git pre-commit hook</td></tr>
+        <tr><td><span class="tag">--hook-config MODE</span></td><td>Pre-commit hook mode: warning-only, or block</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">baseline</span><span class="meta">[false positive management]</span></div>
+    <div class="comment">// record known false positives once, then suppress them on future runs</div>
+    <table class="ftable">
+      <thead>
+        <tr><th>flag</th><th>description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="tag">--baseline-file FILE</span></td><td>Load exclusions from a baseline JSON file</td></tr>
+        <tr><td><span class="tag">--create-baseline FILE</span></td><td>Write current findings to a new baseline file</td></tr>
+        <tr><td><span class="tag">--show-excluded</span></td><td>Show baseline-excluded findings (marked as excluded)</td></tr>
+        <tr><td><span class="tag">--mark-fp ID</span></td><td>Mark a finding ID as false positive and add to baseline</td></tr>
+        <tr><td><span class="tag">--exclusion-reason TEXT</span></td><td>Reason stored with a baseline exclusion (default: "Marked as false positive")</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">examples</span><span class="meta">[copy-paste]</span></div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan</div>
+    <div class="comment">// scan current directory</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan -p ./src -o json,sarif -d ./reports</div>
+    <div class="comment">// scan src/, write JSON + SARIF reports</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan -p ./infra --group-by-severity</div>
+    <div class="comment">// scan Terraform/CloudFormation, grouped output</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan --scan-history --max-commits 100</div>
+    <div class="comment">// scan last 100 git commits</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan --url https://example.com/config.js</div>
+    <div class="comment">// scan a web endpoint</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan --validate-aws -p .</div>
+    <div class="comment">// scan + verify any AWS keys found are active</div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">exit codes</span><span class="meta">[for CI]</span></div>
+    <div class="drow"><span class="k">0</span><span class="tag">clean</span><span></span></div>
+    <div class="drow"><span class="k">1</span><span class="tag">credentials found</span><span></span></div>
+    <div class="drow"><span class="k">2</span><span class="tag">argument error</span><span></span></div>
+  </div>
+</section>
+
+<section id="security" class="guide-section">
+  <div class="prompt"><span class="host">devops@credscan</span> <span class="dollar">$</span><span class="cmd"> cat THREAT_MODEL.md</span></div>
+  <div class="comment">// the scanner must not become the leak; this is what a senior reviewer checks</div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">masking</span><span class="meta">[default everywhere]</span></div>
+    <div class="comment">// human-readable output masks values; full values live only in the JSON audit log</div>
+    <p>Console, HTML, Excel, CSV, PDF, SARIF, and compliance output mask matched values (AKIA...MPLE). The full plaintext value appears only in the CLI JSON output, which is the audit log; treat that file like the secret itself.</p>
+    <div class="brackets">
+      <span class="opt on">[✓] console masked</span>
+      <span class="opt on">[✓] html / excel / csv / pdf masked</span>
+      <span class="opt on">[✓] sarif / compliance masked</span>
+      <span class="opt on">[✓] full value: CLI json only</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">html-escaping</span><span class="meta">[xss boundary]</span></div>
+    <div class="comment">// the report renders matched text; that text is attacker-influenced</div>
+    <p>Scanned content can contain markup. The HTML report escapes matched and surrounding text before rendering, so a finding cannot inject script into the report you open. Values are masked and escaped.</p>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">two-image-model</span><span class="meta">[safe by construction]</span></div>
+    <div class="comment">// the public image cannot be misconfigured into a path reader or a validation oracle</div>
+    <p>The public image omits boto3 and defaults to public mode. There is no single setting that turns the hosted demo into a host-filesystem reader or a credential-checking oracle; the unsafe code paths are not present. The local image is separate and documented as trusted-machine-only.</p>
+    <div class="drow"><span class="k">public image</span><span class="tag">no boto3</span><span></span></div>
+    <div class="drow"><span class="k">public image</span><span class="tag">public mode default</span><span></span></div>
+    <div class="drow"><span class="k">local image</span><span class="tag">trusted machine only</span><span></span></div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">public-mode</span><span class="meta">[hardened]</span></div>
+    <div class="comment">// disabled capabilities, and why each would be dangerous on a public server</div>
+    <table class="ftable">
+      <thead><tr><th>capability</th><th>state</th><th>why disabled</th></tr></thead>
+      <tbody>
+        <tr><td>filesystem / path scanning</td><td><span class="tag">off</span></td><td>would let a visitor read the host filesystem</td></tr>
+        <tr><td>git-history scanning</td><td><span class="tag">off</span></td><td>same host-read surface, against repo history</td></tr>
+        <tr><td>live validation</td><td><span class="tag">off</span></td><td>would make the server a credential-checking oracle</td></tr>
+        <tr><td>web / URL scanning</td><td><span class="tag">on, guarded</span></td><td>allowed (scanning a public URL is a valid use); an SSRF guard refuses internal, loopback, link-local, and cloud-metadata targets and re-checks every redirect hop</td></tr>
+      </tbody>
+    </table>
+    <div class="comment">// content is scanned in a per-request sandbox and deleted; limits 2 MB, 200 files, rate-limited; findings masked</div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">breach-correlation</span><span class="meta">[k-anonymity]</span></div>
+    <div class="comment">// --check-breaches: the secret never leaves the machine</div>
+    <p>Password-like findings are checked against the HaveIBeenPwned Pwned Passwords corpus. The value is SHA-1'd locally and only the first 5 hex characters of that hash are sent; the match is resolved locally. Provider keys (AWS, PEM) are excluded because that corpus does not apply.</p>
+    <div class="brackets">
+      <span class="opt on">[✓] hashed locally (SHA-1)</span>
+      <span class="opt on">[✓] only 5 hex prefix sent</span>
+      <span class="opt on">[✓] match checked locally</span>
+      <span class="opt on">[✓] opt-in</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-head"><span class="name">verification</span><span class="meta">[opt-in, read-only]</span></div>
+    <div class="comment">// --verify / --validate-aws: a token is sent only to its own provider</div>
+    <p>Verification is off by default. When enabled, each check is read-only and rate-limited, and a given token is sent only to the provider that issued it: GitHub to GitHub, Stripe to Stripe, AWS via sts:GetCallerIdentity. Tokens are never sent to a third party. A network or parse error reads as UNVERIFIED, never as invalid.</p>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan -p . --verify</div>
+    <div class="cmd-preview"><span class="dollar">$</span> credscan -p . --validate-aws</div>
+    <div class="comment">// Azure and PyPI are detected but not verified; there is no honest read-only check for them</div>
+  </div>
+</section>
+
+    </main>
+  </div>
+
+  <div class="footer">
+    <span>CredScan guide</span>
+    <span>online · docker · local · cli</span>
+    <span><a class="topbar-link" href="/">back to app</a></span>
+  </div>
+
+</div>
+</body>
+</html>

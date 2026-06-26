@@ -103,6 +103,24 @@ class TestFrontendServed:
         r = client.get("/")
         assert r.status_code == 200
         assert "CREDSCAN" in r.text
+        # The app links to the guide so users can reach it.
+        assert "/guide" in r.text
+
+    def test_guide_served(self, client):
+        r = client.get("/guide")
+        assert r.status_code == 200
+        # The guide covers all four usage surfaces and uses the shared styles.
+        assert "/static/style.css" in r.text
+        for surface in ("online", "docker", "local", "cli"):
+            assert surface in r.text.lower()
+        # No em dash slipped into the shipped guide.
+        assert "—" not in r.text and "–" not in r.text
+
+    def test_guide_available_in_public_mode(self, monkeypatch):
+        # The guide is documentation; it must be reachable on the hosted demo.
+        monkeypatch.setenv("CREDSCAN_PUBLIC", "1")
+        pc = TestClient(create_app())
+        assert pc.get("/guide").status_code == 200
 
 
 class TestMode:

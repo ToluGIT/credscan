@@ -37,7 +37,7 @@ The aim is high signal with minimal noise, so findings reported at default setti
 ## Measured quality
 
 Accuracy claims are backed by a reproducible benchmark, not asserted. Against
-the bundled labeled corpus (16 planted secrets across 6 files, plus 4 clean
+the bundled labeled corpus (17 planted secrets across 6 files, plus 4 clean
 files of decoys: env references, placeholders, hashes, UUIDs, base64 config):
 
 | Metric | Score |
