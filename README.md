@@ -8,7 +8,21 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 </p>
 
-A cloud-security credential scanner that goes beyond simple regex matching. CredScan layers pattern matching, Shannon entropy analysis, and context-aware scoring to detect hardcoded secrets across source code, Infrastructure as Code, CI/CD pipelines, Dockerfiles, git commit history, and web endpoints. Includes optional live AWS key validation.
+A cloud-security credential scanner that goes beyond simple regex matching. CredScan layers pattern matching, Shannon entropy analysis, and context-aware scoring to detect hardcoded secrets across source code, Infrastructure as Code, CI/CD pipelines, Dockerfiles, git commit history, and web endpoints. It can verify which keys are still live and correlate passwords against known breaches.
+
+**Try it live: [credscan.tolubanji.com](https://credscan.tolubanji.com).** Paste a config or upload files in the browser, nothing to install. The hosted demo runs an upload-only sandbox; no path scanning, no data kept.
+
+### Ways to run it
+
+| Surface | Command | What you get |
+|---------|---------|--------------|
+| Online | [credscan.tolubanji.com](https://credscan.tolubanji.com) | Upload or paste in the browser; sandboxed, masked, nothing stored |
+| CLI | `pip install -e .` then `credscan -p .` | Full scanner: paths, git history, web, verification, every report format |
+| Local GUI | `pip install -e ".[gui,aws]"` then `credscan-gui` | The full tool in a browser on your machine (path scan + history + validation) |
+| Docker (public) | `docker run -p 8000:8000 credscan-gui` | The hardened upload-only image, to self-host |
+| Docker (local) | `docker run -p 127.0.0.1:8000:8000 -v "$PWD:/scan:ro" credscan-gui-local` | Full power in a container, loopback only |
+
+For a walkthrough of every surface and feature in the same terminal style, see the in-app guide at [credscan.tolubanji.com/guide](https://credscan.tolubanji.com/guide). For hosting your own instance, see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ---
 
@@ -34,7 +48,7 @@ Most credential scanners apply a regex pattern and report a match. CredScan runs
 3. **Context analysis**: the surrounding lines are examined to assess whether the credential is in production config, test code, documentation, or an example file; confidence is adjusted accordingly
 4. **Confidence scoring**: a weighted score combining pattern strength, entropy, context, and technology signals produces a final confidence value; low-confidence findings are filtered before output
 
-The aim is high signal with minimal noise, so findings reported at default settings are worth investigating.
+The aim is high signal with minimal noise, so findings reported at default settings are worth investigating. Two optional, read-only passes go further: live verification confirms which keys are still active (AWS, GitHub, GCP, Slack, Stripe, OpenAI, Anthropic, npm), and breach correlation checks passwords against the HaveIBeenPwned corpus using k-anonymity, so the value never leaves the machine.
 
 ---
 
@@ -173,6 +187,12 @@ credscan --url https://example.com/static/app.js
 # Validate any AWS keys found (calls sts:GetCallerIdentity, read-only)
 credscan -p . --validate-aws
 
+# Verify tokens against provider endpoints (GitHub, Slack, OpenAI, and more)
+credscan -p . --verify
+
+# Correlate passwords against known breaches (HIBP, k-anonymity)
+credscan -p . --check-breaches
+
 # Tune confidence threshold to reduce false positives
 credscan -p . --min-confidence 0.6 --entropy-threshold 4.5
 ```
@@ -185,7 +205,9 @@ Exit codes: `0` = clean · `1` = credentials found · `2` = argument error
 
 A terminal-styled web interface drives scans and explores findings for anyone
 who would rather not use the CLI. It runs the same engine; the API masks every
-value, so no raw secret leaves the server.
+value, so no raw secret leaves the server. A hosted upload-only instance is at
+**[credscan.tolubanji.com](https://credscan.tolubanji.com)**, with an in-app
+guide at [`/guide`](https://credscan.tolubanji.com/guide).
 
 ```bash
 pip install -e ".[gui,aws]"   # aws extra adds boto3 for live key validation
@@ -267,59 +289,27 @@ Reports are generated with `--output` and saved to `--output-dir`:
 | `html` | Shareable report; values are masked and HTML-escaped |
 | `excel` / `csv` | Spreadsheet-based triage |
 | `pdf` | Printable report |
-| `compliance` | CSV mapping each finding to controls (CWE-798, NIST 800-53 IA-5, PCI-DSS, OWASP ASVS) plus remediation |
+| `compliance` | CSV pivoted by control framework (CWE, NIST 800-53, PCI-DSS v4.0, OWASP ASVS, SOC 2, ISO 27001), with a finding ID, verification status, and remediation |
 
 Secret values are masked in all human-readable output (`AKIA...MPLE`) and full values are only present in the JSON audit log. The HTML report is generated with proper escaping so content from scanned files cannot execute as code in the browser. The SARIF output validates against the official SARIF 2.1.0 schema, carries CWE tags, and uses stable `partialFingerprints` for dedup across runs.
 
 ---
 
-## Baseline management
+## Baseline, incremental, and pre-commit
 
-Once you have identified which findings are false positives, save them to a baseline file. Subsequent scans automatically suppress those findings.
-
-```bash
-# Run a scan and save all findings as the baseline
-credscan -p . --create-baseline .credscan-baseline.json
-
-# Future scans exclude anything in the baseline
-credscan -p . --baseline-file .credscan-baseline.json
-
-# Show what is being suppressed
-credscan -p . --baseline-file .credscan-baseline.json --show-excluded
-
-# Mark a specific finding as a false positive
-credscan -p . --baseline-file .credscan-baseline.json --mark-fp <finding-id>
-```
-
----
-
-## Incremental scanning
-
-For per-commit and CI use, scan only what changed instead of the whole tree:
+For day-to-day use, a few common workflows:
 
 ```bash
-credscan --staged             # only git-staged files (pre-commit)
-credscan --diff origin/main   # only files changed vs a base branch (CI)
+credscan -p . --create-baseline .credscan-baseline.json   # save current findings as the baseline
+credscan -p . --baseline-file .credscan-baseline.json     # suppress everything in it on future scans
+credscan --staged                                         # scan only git-staged files (pre-commit)
+credscan --diff origin/main                               # scan only what changed vs a base branch (CI)
+credscan --install-hook                                   # install the git pre-commit hook
 ```
 
-Diff mode reads the changed-file list from git and scans just those paths, so a
-typical commit scans in well under a second regardless of repository size.
-
-## Pre-commit hook
-
-Install CredScan as a git pre-commit hook to prevent secrets from being committed in the first place:
-
-```bash
-credscan --install-hook
-```
-
-Configure blocking behaviour in `.credscan-hook.conf`:
-
-```bash
-HOOK_CONFIG="block"          # block the commit if credentials are found
-# HOOK_CONFIG="warning-only" # warn but allow the commit through
-BASELINE_FILE=".credscan-baseline.json"
-```
+Diff mode reads the changed-file list from git, so a typical commit scans in well
+under a second regardless of repository size. Run `credscan --help` for the full
+flag reference, or see the [in-app guide](https://credscan.tolubanji.com/guide).
 
 ---
 
@@ -365,29 +355,8 @@ A pre-built Docker image is also available:
 docker run --rm -v "$PWD:/scan" ghcr.io/tolugit/credscan -p /scan
 ```
 
----
-
-## Configuration file
-
-For repeatable scans across environments, put settings in `config.yaml`:
-
-```yaml
-scan_path: "."
-exclude_patterns:
-  - "node_modules/"
-  - ".git/"
-  - "dist/"
-  - "*.log"
-min_confidence_threshold: 0.4
-entropy_threshold: 4.0
-output_formats: ["console", "sarif"]
-output_directory: "./reports"
-baseline_file: ".credscan-baseline.json"
-```
-
-```bash
-credscan --config config.yaml
-```
+For repeatable scans, settings (scan path, exclude patterns, thresholds, output
+formats, baseline) can live in a `config.yaml` loaded with `credscan --config config.yaml`.
 
 ---
 
