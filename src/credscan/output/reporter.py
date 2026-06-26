@@ -31,6 +31,40 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def verification_stats(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Compute the verified-secret precision metric from actual verdicts.
+
+    Of findings for providers CredScan can verify, how many were confirmed
+    live. This is the most persuasive honest number a secrets scanner can
+    report ("4/5 verifiable keys confirmed active"), so it is computed from
+    real verdicts attached by the validators, never asserted.
+
+    Returns counts: verifiable (had a verdict attempted), live (confirmed
+    active), live_rate (live/verifiable), and breached (secrets found in a
+    known breach corpus).
+    """
+    verifiable = 0
+    live = 0
+    breached = 0
+    for f in findings:
+        verdict = f.get("verification") or f.get("aws_validation")
+        if verdict:
+            # SKIPPED/UNKNOWN means we could not actually verify; don't count it
+            # as verifiable, so the rate reflects real confirm-or-deny outcomes.
+            if verdict.startswith(("ACTIVE", "INVALID")):
+                verifiable += 1
+                if verdict.startswith("ACTIVE"):
+                    live += 1
+        if str(f.get("breach_exposure", "")).startswith("EXPOSED"):
+            breached += 1
+    return {
+        "verifiable": verifiable,
+        "live": live,
+        "live_rate": (live / verifiable) if verifiable else 0.0,
+        "breached": breached,
+    }
+
+
 class Reporter:
     """
     Handles formatting and outputting credential detection results.
@@ -203,6 +237,22 @@ class Reporter:
                 )
             if severity_counts["low"] > 0:
                 print(f"{c['green']}Low severity: {severity_counts['low']}{c['reset']}")
+
+            # Verification summary: the killer honest metric. Only shown when a
+            # verify/validate run actually attached verdicts.
+            vstats = verification_stats(findings)
+            if vstats["verifiable"] > 0:
+                print(
+                    f"\n{c['bold']}Verification:{c['reset']} "
+                    f"{c['red']}{vstats['live']} live{c['reset']} / "
+                    f"{vstats['verifiable']} verifiable "
+                    f"({vstats['live_rate']:.0%} confirmed active)"
+                )
+            if vstats["breached"] > 0:
+                print(
+                    f"{c['red']}Breach-exposed: {vstats['breached']} secret(s) "
+                    f"found in known breaches{c['reset']}"
+                )
         else:
             print(f"\n{c['green']}{c['bold']}No credentials found.{c['reset']}")
 
@@ -1013,6 +1063,17 @@ class Reporter:
             if verification and not is_excluded:
                 vcolor = c["red"] if verification.startswith("ACTIVE") else c["dim"]
                 print(f"  Verification: {vcolor}{verification}{c['reset']}")
+
+            # Show breach-exposure correlation if it ran (--check-breaches)
+            breach = finding.get("breach_exposure")
+            if breach and not is_excluded:
+                bcolor = c["red"] if breach.startswith("EXPOSED") else c["dim"]
+                print(f"  Breach exposure: {bcolor}{breach}{c['reset']}")
+
+            # Show the git-history exposure window if present (history scans)
+            window = finding.get("exposure_window")
+            if window and not is_excluded:
+                print(f"  Exposure: {c['dim']}{window}{c['reset']}")
 
             # Show remediation guidance (skip for clearly-excluded findings)
             if not is_excluded:

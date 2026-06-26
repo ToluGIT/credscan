@@ -150,6 +150,7 @@ def _public_finding(f: Dict[str, Any]) -> Dict[str, Any]:
         ),
         "detector": f.get("rule_id", ""),
         "validation": f.get("verification") or f.get("aws_validation") or "not run",
+        "breach_exposure": f.get("breach_exposure", ""),
         "context_type": f.get("context_type", ""),
         "remediation": rem["action"],
         "remediation_fix": rem["root_cause"],
@@ -157,12 +158,22 @@ def _public_finding(f: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _apply_validation(findings, job):
-    """Run AWS + token validators over findings (read-only, opt-in)."""
+    """Run AWS + token validators (and breach correlation) over findings.
+
+    Read-only and opt-in. Only reached in local mode (public mode never sets
+    validate_live), so these outbound provider/HIBP calls are never triggered
+    by an anonymous visitor with uploaded content.
+    """
     try:
-        from credscan.validators import AWSCredentialValidator, TokenValidator
+        from credscan.validators import (
+            AWSCredentialValidator,
+            BreachChecker,
+            TokenValidator,
+        )
 
         findings = AWSCredentialValidator({}).enrich_findings(findings)
         findings = TokenValidator({}).enrich_findings(findings)
+        findings = BreachChecker({}).enrich_findings(findings)
     except Exception as e:
         job.lines.put(f"  validation skipped: {e}")
     return findings

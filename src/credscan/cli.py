@@ -210,6 +210,12 @@ def parse_args():
         help="Verify discovered tokens against provider identity endpoints "
         "(GitHub/GCP/Slack/Stripe; read-only, opt-in)",
     )
+    cloud.add_argument(
+        "--check-breaches",
+        action="store_true",
+        help="Correlate passwords/secrets against known breaches via HIBP "
+        "(k-anonymity: the secret never leaves the machine; opt-in)",
+    )
 
     # ── Git Integration ───────────────────────────────────────────────────────
     git = parser.add_argument_group("Git Integration")
@@ -723,6 +729,14 @@ BASELINE_FILE=".credscan-baseline.json"
 
         token_validator = TokenValidator(config)
         findings = token_validator.enrich_findings(findings)
+
+    # Optionally correlate secrets against known breaches (opt-in, k-anonymity:
+    # the secret never leaves the machine, only a SHA-1 prefix is sent).
+    if getattr(args, "check_breaches", False) and findings:
+        logger.info("Correlating secrets against known breaches (HIBP, k-anonymity)...")
+        from credscan.validators import BreachChecker
+
+        findings = BreachChecker(config).enrich_findings(findings)
 
     # Handle baseline operations
     if args.create_baseline:
