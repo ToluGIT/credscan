@@ -23,6 +23,12 @@
 # model.
 FROM python:3.12-slim
 
+# git is required for git-history scanning (the scanner shells out to `git`);
+# the slim base does not include it.
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y git \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /opt/credscan
 
 COPY setup.py setup.cfg pyproject.toml MANIFEST.in README.md ./
@@ -35,6 +41,11 @@ RUN pip install --no-cache-dir ".[gui,aws]" \
 # Non-root user. Mounted scan targets and ~/.aws should be mounted read-only.
 RUN useradd --create-home --uid 10001 scanner
 USER scanner
+
+# A repo mounted from the host is owned by a different uid than `scanner`, which
+# trips git's dubious-ownership guard. Allow any mounted path so git-history
+# scanning works; the scan is read-only so this is safe.
+RUN git config --global --add safe.directory '*'
 
 # LOCAL mode: path scanning, git-history, and AWS validation are enabled.
 # This image is deliberately NOT public; do not set CREDSCAN_PUBLIC here.
