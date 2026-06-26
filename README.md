@@ -1,8 +1,12 @@
-# CredScan
+<p align="center">
+  <img src="docs/credscan-lockup.svg" alt="credscan" width="380">
+</p>
 
-[![CI](https://github.com/ToluGIT/credscan/actions/workflows/ci.yml/badge.svg)](https://github.com/ToluGIT/credscan/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<p align="center">
+  <a href="https://github.com/ToluGIT/credscan/actions/workflows/ci.yml"><img src="https://github.com/ToluGIT/credscan/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.9%2B-blue" alt="Python"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+</p>
 
 A cloud-security credential scanner that goes beyond simple regex matching. CredScan layers pattern matching, Shannon entropy analysis, and context-aware scoring to detect hardcoded secrets across source code, Infrastructure as Code, CI/CD pipelines, Dockerfiles, git commit history, and web endpoints. Includes optional live AWS key validation.
 

@@ -102,9 +102,16 @@ class TestFrontendServed:
     def test_index_served(self, client):
         r = client.get("/")
         assert r.status_code == 200
-        assert "CREDSCAN" in r.text
+        # The brand wordmark is the live "$ credscan" markup (logo handoff).
+        assert "cs-logo" in r.text and "credscan" in r.text
         # The app links to the guide so users can reach it.
         assert "/guide" in r.text
+
+    def test_app_uses_logo_favicon(self, client):
+        # The real logo favicon is wired in (not the old inline placeholder).
+        r = client.get("/")
+        assert "/static/credscan-icon.svg" in r.text
+        assert client.get("/static/credscan-icon.svg").status_code == 200
 
     def test_guide_served(self, client):
         r = client.get("/guide")

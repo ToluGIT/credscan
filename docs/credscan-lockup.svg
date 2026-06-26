@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="200" viewBox="0 0 900 200" role="img" aria-label="credscan">
+  
+  <text x="40" y="100" font-family="&#39;JetBrains Mono&#39;,&#39;Fira Code&#39;,ui-monospace,monospace" font-weight="700" font-size="120" dominant-baseline="central" letter-spacing="0">
+    <tspan fill="#00FF14">$</tspan><tspan fill="#E0E0E0"> credscan</tspan>
+  </text>
+  <rect x="770" y="48" width="42" height="104" fill="#00FF14"></rect>
+</svg>

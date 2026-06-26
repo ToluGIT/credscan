@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="credscan">
+  <rect width="512" height="512" fill="#0A0A0A"></rect>
+  <rect x="6" y="6" width="500" height="500" fill="none" stroke="#00FF14" stroke-width="12"></rect>
+  <text x="256" y="256" font-family="&#39;JetBrains Mono&#39;,&#39;Fira Code&#39;,ui-monospace,monospace" font-weight="700" font-size="340" fill="#00FF14" text-anchor="middle" dominant-baseline="central">$</text>
+</svg>
