@@ -87,10 +87,17 @@ class TestVerdictMapping:
             validator, "_get_requests", return_value=self._mock_requests(200)
         ):
             assert validator.validate(tok)["valid"] is True
+        # Both 401 (bad key) and 403 (key can't authenticate) are invalid.
+        for code in (401, 403):
+            with patch.object(
+                validator, "_get_requests", return_value=self._mock_requests(code)
+            ):
+                assert validator.validate(tok)["valid"] is False
+        # A non-auth error (e.g. 500) stays unverified, never invalid.
         with patch.object(
-            validator, "_get_requests", return_value=self._mock_requests(401)
+            validator, "_get_requests", return_value=self._mock_requests(500)
         ):
-            assert validator.validate(tok)["valid"] is False
+            assert validator.validate(tok)["valid"] is None
 
     def test_anthropic_active_and_invalid(self, validator):
         tok = "sk-ant-api03-Zk9xQ2mNpR7vYt3wBfHj4LcDgE8sUaItoR"

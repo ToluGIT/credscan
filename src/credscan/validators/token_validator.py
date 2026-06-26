@@ -166,8 +166,14 @@ class TokenValidator:
         )
         if resp.status_code == 200:
             return {"valid": True, "identity": "openai key (active)"}
-        if resp.status_code == 401:
-            return {"valid": False, "error": "HTTP 401 (invalid/revoked)"}
+        # 401 = bad key; 403 = key cannot authenticate to the endpoint
+        # (disabled/region-blocked). Both mean the key does not work here, and
+        # this matches the github/anthropic handling.
+        if resp.status_code in (401, 403):
+            return {
+                "valid": False,
+                "error": f"HTTP {resp.status_code} (invalid/revoked)",
+            }
         return {"valid": None, "error": f"HTTP {resp.status_code}"}
 
     def _verify_anthropic(self, requests, token: str) -> Dict[str, Any]:
