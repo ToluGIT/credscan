@@ -29,9 +29,8 @@ htmlcov/
 *.swp
 *.swo
 
-# Claude Code project settings (local only) — but keep shared skills in the repo
-.claude/*
-!.claude/skills/
+# Claude Code project settings and skills (local only, never committed)
+.claude/
 
 # macOS
 .DS_Store
