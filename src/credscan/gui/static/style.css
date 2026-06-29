@@ -49,14 +49,11 @@ body {
 /* App shell: fixed sidebar + scrolling main */
 .shell { display: grid; grid-template-columns: 232px 1fr; min-height: calc(100vh - 92px); }
 .main { padding: 24px 28px 48px; max-width: 1100px; }
-@media (max-width: 720px) {
-  .shell { grid-template-columns: 1fr; }
-  .sidebar { display: none; }
-}
 
 /* Sidebar */
 .sidebar { border-right: 1px solid var(--border); padding: 20px 16px; display: flex; flex-direction: column; }
 .side-sec { color: var(--text-muted); font-size: 12px; margin-bottom: 8px; }
+.side-nav { display: flex; flex-direction: column; }
 .navitem {
   display: grid; grid-template-columns: 14px 1fr auto; align-items: center; gap: 6px;
   width: 100%; text-align: left; background: transparent; border: none;
@@ -248,7 +245,12 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; background: var
 .fade-up { animation: fadeUp 0.25s ease forwards; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-.footer { border-top: 1px solid var(--border); padding: 8px 24px; color: var(--text-muted); font-size: 11px; display: flex; gap: 16px; flex-wrap: wrap; }
+.footer { border-top: 1px solid var(--border); padding: 8px 24px; color: var(--text-muted); font-size: 11px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+.footer a { color: var(--text-muted); text-decoration: none; }
+.footer a:hover { color: var(--accent); }
+.footer .foot-by { margin-left: auto; }
+.footer .foot-by a { color: var(--text-primary); }
+.footer .foot-by a:hover { color: var(--accent); }
 
 /* ── Guide / docs page (reuses the shell + panel system) ─────────────────── */
 /* Cap the TOC + reading column and center the whole block in the viewport. */
@@ -270,3 +272,85 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; background: var
 .guide-section .panel p:first-child { margin-top: 0; }
 .guide-section a { color: var(--accent); text-decoration: none; }
 .guide-section a:hover { text-decoration: underline; }
+
+/* Long tokens (flags, URIs) in guide tables must not force horizontal scroll. */
+.guide-section .ftable { table-layout: fixed; }
+.guide-section .ftable td, .guide-section .ftable th { overflow-wrap: anywhere; word-break: break-word; }
+.guide-section .ftable .tag { white-space: normal; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────
+   Single breakpoint at 720px: phones and small tablets. The goals are
+   (1) never hide navigation, (2) never scroll the page sideways. */
+@media (max-width: 720px) {
+  body { font-size: 14px; }
+
+  /* Top bar wraps instead of colliding; brand shrinks, links drop below. */
+  .topbar { flex-wrap: wrap; gap: 8px 12px; padding: 12px 16px; }
+  .topbar .brand { gap: 8px; min-width: 0; }
+  .topbar .sub { display: none; }            /* "CREDENTIAL SCANNER" subtitle is noise on a phone */
+  .topbar-right { gap: 10px; flex-wrap: wrap; }
+
+  /* Shell collapses to one column; sidebar becomes a horizontal command strip
+     pinned to the top, so every screen stays reachable. minmax(0,...) lets the
+     grid track shrink below its content so the nav strip can scroll instead of
+     widening the page. */
+  .shell { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .sidebar {
+    min-width: 0;
+    border-right: none; border-bottom: 1px solid var(--border);
+    padding: 8px 12px; flex-direction: column;
+  }
+  .main { min-width: 0; }
+  .sidebar .side-sec:first-child { display: none; }   /* "// commands" label */
+  /* min-width:0 is required for overflow-x to engage on a flex item. */
+  .side-nav { flex-direction: row; gap: 4px; min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+  .side-nav .navitem {
+    flex: 0 0 auto; grid-template-columns: auto auto; gap: 4px;
+    border-left: none; border-bottom: 2px solid transparent; padding: 6px 10px; white-space: nowrap;
+  }
+  .side-nav .navitem.active { border-left-color: transparent; border-bottom-color: var(--accent); }
+  .side-nav .navitem .nav-arrow { display: none; }
+  /* The file-type list and footer meta are reference detail; hide on phones to save height. */
+  .sidebar .side-list, .sidebar .side-foot,
+  .sidebar .side-sec:not(:first-child) { display: none; }
+
+  .main { padding: 16px 16px 40px; }
+
+  /* Grids that were 4-up become 2-up so cards stay legible. */
+  .qa-grid { grid-template-columns: repeat(2, 1fr); }
+  .sev-cards { grid-template-columns: repeat(2, 1fr); }
+
+  /* Input rows wrap rather than overflowing; the field keeps full width. */
+  .cli-row { flex-wrap: wrap; }
+  .cli-row input { min-width: 0; }
+  .cli-row .btn { width: 100%; }
+
+  /* Findings filters stack; export buttons wrap under the controls. */
+  .filters { gap: 6px 10px; }
+  .export-row { margin-left: 0; flex-wrap: wrap; }
+
+  /* Any table can break long tokens and scroll inside its own panel, not the page. */
+  .ftable td, .ftable th { overflow-wrap: anywhere; }
+  .kv { grid-template-columns: 92px 1fr; }
+
+  /* Data rows: let a long description tag wrap instead of forcing page width. */
+  .drow { grid-template-columns: 1fr; gap: 2px; }
+  .drow .tag { white-space: normal; overflow-wrap: anywhere; }
+
+  /* Guide: keep the TOC as a working jump-nav, but un-stick it and run it
+     full width above the reading column (a base rule's source order was
+     overriding the old display:none, so the TOC showed regardless). */
+  .guide-shell { grid-template-columns: minmax(0, 1fr); }
+  .guide-toc {
+    position: static; border-right: none; border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+  }
+  .guide-main { padding: 16px 16px 48px; }
+  .footer { padding: 8px 16px; }
+  .footer .foot-by { margin-left: 0; }
+}
+
+/* Very narrow phones: drop everything to a single column. */
+@media (max-width: 420px) {
+  .qa-grid, .sev-cards { grid-template-columns: 1fr; }
+}

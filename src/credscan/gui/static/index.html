@@ -22,6 +22,7 @@
     </div>
     <div class="topbar-right">
       <a class="topbar-link" href="/guide">[ guide ]</a>
+      <a class="topbar-link" href="https://github.com/ToluGIT/credscan" target="_blank" rel="noopener">[ github ]</a>
       <span class="mode-tag" :class="publicMode ? 'mode-public' : 'mode-local'">
         {{ publicMode ? '[ public · upload-only ]' : '[ local ]' }}
       </span>
@@ -34,13 +35,15 @@
     <!-- ── Sidebar ──────────────────────────────────────────── -->
     <aside class="sidebar">
       <div class="side-sec">// commands</div>
-      <button v-for="s in screens" :key="s.id"
-              class="navitem" :class="{active: screen === s.id}" @click="screen = s.id">
-        <span class="nav-arrow">{{ screen === s.id ? '>' : ' ' }}</span>
-        <span class="nav-label">{{ s.label }}</span>
-        <span class="nav-sub">{{ s.sub }}</span>
-        <span v-if="s.id === 'report' && totalFindings" class="nav-badge">{{ totalFindings }}</span>
-      </button>
+      <div class="side-nav">
+        <button v-for="s in screens" :key="s.id"
+                class="navitem" :class="{active: screen === s.id}" @click="screen = s.id">
+          <span class="nav-arrow">{{ screen === s.id ? '>' : ' ' }}</span>
+          <span class="nav-label">{{ s.label }}</span>
+          <span class="nav-sub">{{ s.sub }}</span>
+          <span v-if="s.id === 'report' && totalFindings" class="nav-badge">{{ totalFindings }}</span>
+        </button>
+      </div>
 
       <div class="side-sec" style="margin-top:20px">// inputs · file types it parses</div>
       <div class="side-list">
@@ -337,6 +340,7 @@ fix: {{ f.remediation_fix }}</pre>
     <span>{{ baseline.length }} suppressed</span>
     <span>{{ clock }}</span>
     <span>UTF-8</span>
+    <span class="foot-by">built by <a href="https://github.com/ToluGIT" target="_blank" rel="noopener">ToluGIT</a> · <a href="https://github.com/ToluGIT/credscan" target="_blank" rel="noopener">source</a></span>
   </div>
 
 </div>
